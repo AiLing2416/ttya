@@ -6,8 +6,8 @@
 set -eo pipefail
 
 CROSS_ROOT="${CROSS_ROOT:-/opt/cross}"
-STAGE_ROOT="${STAGE_ROOT:-$(pwd)/build/stage}"
-BUILD_ROOT="${BUILD_ROOT:-$(pwd)/build/target}"
+STAGE_ROOT="${STAGE_ROOT:-$(pwd)/cross-workspace/stage}"
+BUILD_ROOT="${BUILD_ROOT:-$(pwd)/cross-workspace/target}"
 BUILD_TARGET="${BUILD_TARGET:-x86_64}"
 
 ZLIB_VERSION="${ZLIB_VERSION:-1.3.1}"
@@ -155,8 +155,6 @@ build() {
     rm -rf "${STAGE_DIR}" "${BUILD_DIR}"
     mkdir -p "${STAGE_DIR}" "${BUILD_DIR}"
     export PKG_CONFIG_PATH="${STAGE_DIR}/lib/pkgconfig"
-
-    install_cmake_cross_file ${SYSTEM}
 
     install_cmake_cross_file ${SYSTEM}
 
