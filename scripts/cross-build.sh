@@ -6,8 +6,8 @@
 set -eo pipefail
 
 CROSS_ROOT="${CROSS_ROOT:-/opt/cross}"
-STAGE_ROOT="${STAGE_ROOT:-/opt/stage}"
-BUILD_ROOT="${BUILD_ROOT:-/opt/build}"
+STAGE_ROOT="${STAGE_ROOT:-$(pwd)/build/stage}"
+BUILD_ROOT="${BUILD_ROOT:-$(pwd)/build/target}"
 BUILD_TARGET="${BUILD_TARGET:-x86_64}"
 
 ZLIB_VERSION="${ZLIB_VERSION:-1.3.1}"
@@ -127,6 +127,8 @@ build_ttya() {
         -DCMAKE_BUILD_TYPE=RELEASE \
         ..
     make install
+    mkdir -p ../../dist/"${ALIAS}"
+    cp "${STAGE_DIR}"/bin/ttya* ../../dist/"${ALIAS}"/
 }
 
 build() {
@@ -164,6 +166,7 @@ build() {
     build_ttya
 }
 
+ORIG_TARGET=${BUILD_TARGET}
 case ${BUILD_TARGET} in
     amd64) BUILD_TARGET="x86_64" ;;
     arm64) BUILD_TARGET="aarch64" ;;
@@ -172,19 +175,19 @@ esac
 
 case ${BUILD_TARGET} in
     i686|x86_64|aarch64|mips|mipsel|mips64|mips64el|s390x)
-        build "${BUILD_TARGET}-linux-musl" "${BUILD_TARGET}"
+        build "${BUILD_TARGET}-linux-musl" "${ORIG_TARGET}"
         ;;
     arm)
-        build "${BUILD_TARGET}-linux-musleabi" "${BUILD_TARGET}"
+        build "${BUILD_TARGET}-linux-musleabi" "${ORIG_TARGET}"
         ;;
     armhf)
-        build arm-linux-musleabihf "${BUILD_TARGET}"
+        build arm-linux-musleabihf "${ORIG_TARGET}"
         ;;
     armv7l)
-        build armv7l-linux-musleabihf "${BUILD_TARGET}"
+        build armv7l-linux-musleabihf "${ORIG_TARGET}"
         ;;
     win32)
-        build x86_64-w64-mingw32 "${BUILD_TARGET}"
+        build x86_64-w64-mingw32 "${ORIG_TARGET}"
         ;;
     *)
         echo "unknown cross target: ${BUILD_TARGET}" && exit 1
