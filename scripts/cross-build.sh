@@ -158,12 +158,23 @@ build() {
 
     install_cmake_cross_file ${SYSTEM}
 
+    install_cmake_cross_file ${SYSTEM}
+
+    install_cmake
     build_zlib
     build_json-c
     build_libuv
     build_mbedtls
     build_libwebsockets
     build_ttya
+}
+
+install_cmake() {
+    echo "=== Installing CMake..."
+    CMAKE_VERSION="3.28.1"
+    mkdir -p "${CROSS_ROOT}/cmake"
+    curl -fSsLo- "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" | tar xz -C "${CROSS_ROOT}/cmake" --strip-components=1
+    export PATH="${CROSS_ROOT}/cmake/bin:${PATH}"
 }
 
 ORIG_TARGET=${BUILD_TARGET}
