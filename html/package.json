@@ -1,0 +1,74 @@
+{
+  "private": true,
+  "name": "ttya",
+  "version": "1.8.0",
+  "description": "Share your terminal over the web",
+  "repository": {
+    "url": "https://github.com/AiLing2416/ttya.git",
+    "type": "git"
+  },
+  "author": "Shuanglei Tao <tsl0922@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "prestart": "gulp clean",
+    "start": "NODE_ENV=development && webpack serve",
+    "build": "NODE_ENV=production webpack && gulp",
+    "inline": "NODE_ENV=production webpack && gulp inline",
+    "check": "gts check",
+    "fix": "gts fix"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "copy-webpack-plugin": "^13.0.1",
+    "css-loader": "^7.1.2",
+    "css-minimizer-webpack-plugin": "^7.0.4",
+    "eslint": "^9.39.2",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-webpack-plugin": "^5.0.2",
+    "gts": "^7.0.0",
+    "gulp": "^5.0.1",
+    "gulp-clean": "^0.4.0",
+    "gulp-gzip": "^1.4.2",
+    "gulp-inline-source": "^4.0.0",
+    "gulp-rename": "^2.1.0",
+    "html-webpack-plugin": "^5.6.5",
+    "mini-css-extract-plugin": "^2.9.4",
+    "sass": "^1.97.1",
+    "sass-loader": "^16.0.6",
+    "scssfmt": "^1.0.7",
+    "style-loader": "^4.0.0",
+    "terser-webpack-plugin": "^5.3.16",
+    "through2": "^4.0.2",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "util": "^0.12.5",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2",
+    "webpack-merge": "^6.0.1"
+  },
+  "dependencies": {
+    "@xterm/addon-canvas": "^0.7.0",
+    "@xterm/addon-clipboard": "^0.1.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-image": "^0.8.0",
+    "@xterm/addon-unicode11": "^0.8.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
+    "decko": "^1.2.0",
+    "file-saver": "^2.0.5",
+    "preact": "^10.28.0",
+    "trzsz": "^1.1.5",
+    "whatwg-fetch": "^3.6.20",
+    "zmodem.js": "^0.1.10"
+  },
+  "resolutions": {
+    "zmodem.js@^0.1.10": "patch:zmodem.js@npm%3A0.1.10#./.yarn/patches/zmodem.js-npm-0.1.10-e5537fa2ed.patch"
+  },
+  "packageManager": "yarn@3.6.3"
+}

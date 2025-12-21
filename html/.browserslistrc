@@ -1,0 +1,6 @@
+defaults
+last 2 versions
+> 1%
+safari >= 13
+ios_saf >= 13
+not dead
