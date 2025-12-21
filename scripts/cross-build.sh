@@ -127,11 +127,11 @@ build_ttya() {
         -DCMAKE_BUILD_TYPE=RELEASE \
         ..
     make install
-    mkdir -p ../../dist/"${ALIAS}"
+    mkdir -p ../dist/"${ALIAS}"
     if [ "$ALIAS" = "win32" ]; then
-        cp "${STAGE_DIR}"/bin/ttya.exe "../../dist/${ALIAS}/ttya-${ALIAS}.exe"
+        cp "${STAGE_DIR}"/bin/ttya.exe "../dist/${ALIAS}/ttya-${ALIAS}.exe"
     else
-        cp "${STAGE_DIR}"/bin/ttya "../../dist/${ALIAS}/ttya-${ALIAS}"
+        cp "${STAGE_DIR}"/bin/ttya "../dist/${ALIAS}/ttya-${ALIAS}"
     fi
 }
 
