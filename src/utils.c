@@ -74,6 +74,26 @@ int get_sig(const char *sig_name) {
   return atoi(sig_name);
 }
 
+bool check_path(const char *path, const char *base) {
+  char *abs_base = realpath(base, NULL);
+  if (!abs_base) return false;
+
+  char *abs_path = realpath(path, NULL);
+  bool ret = false;
+
+  if (abs_path) {
+    if (strncmp(abs_path, abs_base, strlen(abs_base)) == 0) {
+      if (abs_path[strlen(abs_base)] == '\0' || abs_path[strlen(abs_base)] == '/') {
+        ret = true;
+      }
+    }
+    free(abs_path);
+  }
+
+  free(abs_base);
+  return ret;
+}
+
 int open_uri(char *uri) {
 #ifdef __APPLE__
   char command[256];
