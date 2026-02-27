@@ -28,6 +28,9 @@ int get_sig_name(int sig, char *buf, size_t len);
 // Get signal code from string like SIGHUP
 int get_sig(const char *sig_name);
 
+// Check path is safe
+bool check_path(const char *path, const char *base);
+
 // Open uri with the default application of system
 int open_uri(char *uri);
 
