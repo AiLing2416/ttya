@@ -27,7 +27,7 @@
     "css-minimizer-webpack-plugin": "^7.0.4",
     "eslint": "^9.39.2",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-prettier": "^5.5.5",
     "eslint-webpack-plugin": "^5.0.2",
     "gts": "^7.0.0",
     "gulp": "^5.0.1",
