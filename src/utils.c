@@ -52,7 +52,7 @@ char *lowercase(char *s) { return string_transform(s, tolower); }
 bool endswith(const char *str, const char *suffix) {
   size_t str_len = strlen(str);
   size_t suffix_len = strlen(suffix);
-  return str_len > suffix_len && !strcmp(str + (str_len - suffix_len), suffix);
+  return str_len >= suffix_len && !strcmp(str + (str_len - suffix_len), suffix);
 }
 
 int get_sig_name(int sig, char *buf, size_t len) {
