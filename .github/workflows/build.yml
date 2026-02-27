@@ -36,7 +36,7 @@ jobs:
       run: |
         docker run --rm -v $(pwd):/src -w /src \
           -e BUILD_TARGET=${{ matrix.target }} \
-          tsl0922/musl-cross ./scripts/cross-build.sh
+          tsl0922/musl-cross@sha256:a397edebffcfb6cedc5c6556d26fa064dc4503db08cf317f060988257a88dc74 ./scripts/cross-build.sh
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4

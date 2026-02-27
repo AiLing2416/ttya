@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <libgen.h>
 #include <libwebsockets.h>
 #include <string.h>
 #include <time.h>
@@ -122,6 +123,7 @@ static bool uncompress_html(char** output, size_t* output_len) {
 
 static void pss_buffer_free(struct pss_http* pss) {
   if (pss->buffer != (char*)index_html && pss->buffer != html_cache) free(pss->buffer);
+  pss->buffer = NULL;
 }
 
 static void access_log(struct lws* wsi, const char* path) {
@@ -203,6 +205,11 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         char path_arg[4096] = "";
         if (lws_get_urlarg_by_name(wsi, "path", path_arg, sizeof(path_arg)) < 0) {
           lws_return_http_status(wsi, HTTP_STATUS_BAD_REQUEST, "Missing path arg");
+          return 1;
+        }
+
+        if (!check_path(path_arg, server->cwd ? server->cwd : ".")) {
+          send_error(wsi, HTTP_STATUS_FORBIDDEN, "File outside of working directory");
           return 1;
         }
 
@@ -305,6 +312,21 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
             lws_callback_on_writable(wsi);
             return 0;
           }
+        }
+
+        bool path_ok = false;
+        if (stat(full_path, &st) == 0) {
+          path_ok = check_path(full_path, server->cwd ? server->cwd : ".");
+        } else {
+          char path_dup[4096];
+          strncpy(path_dup, full_path, sizeof(path_dup));
+          path_dup[sizeof(path_dup) - 1] = 0;
+          path_ok = check_path(dirname(path_dup), server->cwd ? server->cwd : ".");
+        }
+
+        if (!path_ok) {
+          send_error(wsi, HTTP_STATUS_FORBIDDEN, "File outside of working directory");
+          return 1;
         }
 
         pss->upload_fd = open(full_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
