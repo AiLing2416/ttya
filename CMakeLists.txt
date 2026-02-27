@@ -92,3 +92,8 @@ include(GNUInstallDirs)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT prog)
 install(FILES man/ttya.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1" COMPONENT doc)
+
+enable_testing()
+add_executable(test_utils tests/test_utils.c src/utils.c)
+target_include_directories(test_utils PRIVATE src)
+add_test(NAME test_utils COMMAND test_utils)
