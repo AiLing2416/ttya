@@ -1,0 +1,1 @@
+xdg-open called with: http://example.com; touch /tmp/pwned

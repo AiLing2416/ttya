@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "xdg-open called with: $@" >> xdg_output.txt
