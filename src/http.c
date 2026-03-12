@@ -133,37 +133,27 @@ static void access_log(struct lws* wsi, const char* path) {
   lwsl_notice("HTTP %s - %s\n", path, rip);
 }
 
-static int send_error(struct lws* wsi, int status, const char* msg) {
+static int send_error(struct lws* wsi, struct pss_http* pss, int status, const char* msg) {
   unsigned char buffer[1024 + LWS_PRE], *p, *end;
   char body[512];
   p = buffer + LWS_PRE;
   end = p + sizeof(buffer) - LWS_PRE;
 
   int body_len = snprintf(body, sizeof(body), "{\"error\": \"%s\"}", msg);
+  if (body_len >= (int)sizeof(body)) body_len = sizeof(body) - 1;
 
   if (lws_add_http_header_status(wsi, status, &p, end) ||
       lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (unsigned char*)"application/json", 16, &p, end) ||
-      lws_add_http_header_content_length(wsi, body_len, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
+      lws_add_http_header_content_length(wsi, (unsigned long)body_len, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
       lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0) {
     return 1;
   }
 
-  // We can't easily write body here if using LWS_WRITE_HTTP_HEADERS alone for simple responses,
-  // but lws_return_http_status does it internally.
-  // For manual body, we need to handle writable callback or write immediately if small.
-  // Since this is error and small, direct write might work if flow control allows,
-  // but correct way is setting pss->buffer.
-  // However, to simplify, we can use lws_write with LWS_WRITE_HTTP for the body immediately after headers
-  // IF we are sure strictly sequential.
+  pss->buffer = pss->ptr = strdup(body);
+  pss->len = (size_t)body_len;
+  lws_callback_on_writable(wsi);
 
-  // Better strategy for this specific codebase structure which uses pss->buffer in WRITEABLE:
-  // We should probably just return 1 to close or set pss->buffer.
-  // To match existing logic: set pss->buffer and request writable.
-  // BUT `send_error` is called inside CALLBACK_HTTP.
-
-  // Let's adapt the helper to be used like the token success response:
-  // It prepares the buffer and returns 0, so the main loop handles WRITEABLE.
-  return 0;  // Usage logic needs to change slightly
+  return 0;
 }
 
 // Re-implementing usage inside callback to avoid helper complexity with pss/wsi mixture for now,
@@ -199,8 +189,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
       // Handle Download Token: GET /download_token?path=...
       if (strncmp(pss->path, "/download_token", 15) == 0) {
         if (!server->writable) {
-          send_error(wsi, HTTP_STATUS_FORBIDDEN, "File download is disabled (read-only mode)");
-          return 1;
+          return send_error(wsi, pss, HTTP_STATUS_FORBIDDEN, "File download is disabled (read-only mode)");
         }
         char path_arg[4096] = "";
         if (lws_get_urlarg_by_name(wsi, "path", path_arg, sizeof(path_arg)) < 0) {
@@ -209,39 +198,27 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         }
 
         if (!check_path(path_arg, server->cwd ? server->cwd : ".")) {
-          send_error(wsi, HTTP_STATUS_FORBIDDEN, "File outside of working directory");
-          return 1;
+          return send_error(wsi, pss, HTTP_STATUS_FORBIDDEN, "File outside of working directory");
         }
 
         if (access(path_arg, R_OK) != 0) {
-          int n = snprintf(buf, sizeof(buf), "{\"error\": \"File not readable or not found\"}");
-          if (lws_add_http_header_status(wsi, HTTP_STATUS_FORBIDDEN, &p, end) ||
-              lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (unsigned char*)"application/json", 16, &p,
-                                           end) ||
-              lws_add_http_header_content_length(wsi, n, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
-              lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
-            return 1;
-
-          pss->buffer = pss->ptr = strdup(buf);
-          pss->len = n;
-          lws_callback_on_writable(wsi);
-          return 0;
+          return send_error(wsi, pss, HTTP_STATUS_FORBIDDEN, "File not readable or not found");
         }
 
         char token[37];
         gen_random_string(token, 36);
         add_download_token(token, path_arg);
 
-        size_t n = sprintf(buf, "{\"token\": \"%s\"}", token);
+        int n = snprintf(buf, sizeof(buf), "{\"token\": \"%s\"}", token);
         if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
             lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (unsigned char*)"application/json", 16, &p,
                                          end) ||
-            lws_add_http_header_content_length(wsi, n, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
+            lws_add_http_header_content_length(wsi, (unsigned long)n, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
             lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
           return 1;
 
         pss->buffer = pss->ptr = strdup(buf);
-        pss->len = n;
+        pss->len = (size_t)n;
         lws_callback_on_writable(wsi);
         return 0;
       }
@@ -275,8 +252,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
       // Handle Upload: POST /upload?path=...
       if (strncmp(pss->path, "/upload", 7) == 0) {
         if (!server->writable) {
-          send_error(wsi, HTTP_STATUS_FORBIDDEN, "File upload is disabled (read-only mode)");
-          return 1;
+          return send_error(wsi, pss, HTTP_STATUS_FORBIDDEN, "File upload is disabled (read-only mode)");
         }
         char path_arg[4096] = "";
         if (lws_get_urlarg_by_name(wsi, "path", path_arg, sizeof(path_arg)) < 0) {
@@ -299,18 +275,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
             }
             strncat(full_path, filename, sizeof(full_path) - strlen(full_path) - 1);
           } else {
-            int n = snprintf(buf, sizeof(buf), "{\"error\": \"Target is a directory but no filename provided\"}");
-            if (lws_add_http_header_status(wsi, HTTP_STATUS_BAD_REQUEST, &p, end) ||
-                lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (unsigned char*)"application/json", 16,
-                                             &p, end) ||
-                lws_add_http_header_content_length(wsi, n, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
-                lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
-              return 1;
-
-            pss->buffer = pss->ptr = strdup(buf);
-            pss->len = n;
-            lws_callback_on_writable(wsi);
-            return 0;
+            return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Target is a directory but no filename provided");
           }
         }
 
@@ -325,8 +290,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         }
 
         if (!path_ok) {
-          send_error(wsi, HTTP_STATUS_FORBIDDEN, "File outside of working directory");
-          return 1;
+          return send_error(wsi, pss, HTTP_STATUS_FORBIDDEN, "File outside of working directory");
         }
 
         pss->upload_fd = open(full_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -337,25 +301,14 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
           char err_msg[256];
           snprintf(err_msg, sizeof(err_msg), "Could not open file: %s", strerror(err));
 
-          int n = snprintf(buf, sizeof(buf), "{\"error\": \"%s\"}", err_msg);
-          if (lws_add_http_header_status(wsi, HTTP_STATUS_INTERNAL_SERVER_ERROR, &p, end) ||
-              lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (unsigned char*)"application/json", 16, &p,
-                                           end) ||
-              lws_add_http_header_content_length(wsi, n, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
-              lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
-            return 1;
-
-          pss->buffer = pss->ptr = strdup(buf);
-          pss->len = n;
-          lws_callback_on_writable(wsi);
-          return 0;
+          return send_error(wsi, pss, HTTP_STATUS_INTERNAL_SERVER_ERROR, err_msg);
         }
         break;
       }
 
       if (strcmp(pss->path, endpoints.token) == 0) {
         const char* credential = server->credential != NULL ? server->credential : "";
-        size_t n = sprintf(buf, "{\"token\": \"%s\"}", credential);
+        int n = snprintf(buf, sizeof(buf), "{\"token\": \"%s\"}", credential);
         if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
             lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE,
                                          (unsigned char*)"application/json;charset=utf-8", 30, &p, end) ||
@@ -365,7 +318,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
           return 1;
 
         pss->buffer = pss->ptr = strdup(buf);
-        pss->len = n;
+        pss->len = (size_t)n;
         lws_callback_on_writable(wsi);
         break;
       }

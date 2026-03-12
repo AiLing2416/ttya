@@ -23,14 +23,16 @@ static int send_initial_message(struct lws *wsi, int index) {
   switch (cmd) {
     case SET_WINDOW_TITLE:
       gethostname(buffer, sizeof(buffer) - 1);
-      n = sprintf((char *)p, "%c%s (%s)", cmd, server->command, buffer);
+      n = snprintf((char *)p, 4096, "%c%s (%s)", cmd, server->command, buffer);
       break;
     case SET_PREFERENCES:
-      n = sprintf((char *)p, "%c%s", cmd, server->prefs_json);
+      n = snprintf((char *)p, 4096, "%c%s", cmd, server->prefs_json);
       break;
     default:
       break;
   }
+
+  if (n > 4096) n = 4096;
 
   return lws_write(wsi, p, (size_t)n, LWS_WRITE_BINARY);
 }
@@ -56,17 +58,19 @@ static bool check_host_origin(struct lws *wsi) {
   const char *prot, *address, *path;
   int port;
   if (lws_parse_uri(buf, &prot, &address, &port, &path)) return false;
+
+  char origin_buf[256];
   if (port == 80 || port == 443) {
-    sprintf(buf, "%s", address);
+    snprintf(origin_buf, sizeof(origin_buf), "%s", address);
   } else {
-    sprintf(buf, "%s:%d", address, port);
+    snprintf(origin_buf, sizeof(origin_buf), "%s:%d", address, port);
   }
 
   char host_buf[256];
   memset(host_buf, 0, sizeof(host_buf));
   len = lws_hdr_copy(wsi, host_buf, (int)sizeof(host_buf), WSI_TOKEN_HOST);
 
-  return len > 0 && strcasecmp(buf, host_buf) == 0;
+  return len > 0 && strcasecmp(origin_buf, host_buf) == 0;
 }
 
 static pty_ctx_t *pty_ctx_init(struct pss_tty *pss) {

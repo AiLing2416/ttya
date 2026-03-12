@@ -173,8 +173,8 @@ static struct server* server_new(int argc, char** argv, int start) {
   memset(ts, 0, sizeof(struct server));
   ts->client_count = 0;
   ts->sig_code = SIGHUP;
-  sprintf(ts->terminal_type, "%s", "xterm-256color");
-  sprintf(ts->title, "%s", "ttya");
+  snprintf(ts->terminal_type, sizeof(ts->terminal_type), "%s", "xterm-256color");
+  snprintf(ts->title, sizeof(ts->title), "%s", "ttya");
   get_sig_name(ts->sig_code, ts->sig_name, sizeof(ts->sig_name));
   if (start == argc) return ts;
 
@@ -431,8 +431,8 @@ int main(int argc, char** argv) {
       case 'I':
         if (!strncmp(optarg, "~/", 2)) {
           const char* home = getenv("HOME");
-          server->index = malloc(strlen(home) + strlen(optarg) - 1);
-          sprintf(server->index, "%s%s", home, optarg + 1);
+          server->index = malloc(strlen(home) + strlen(optarg));
+          snprintf(server->index, strlen(home) + strlen(optarg), "%s%s", home, optarg + 1);
         } else {
           server->index = strdup(optarg);
         }
@@ -543,7 +543,7 @@ int main(int argc, char** argv) {
   lws_set_log_level(debug_level, NULL);
 
   char server_hdr[128] = "";
-  sprintf(server_hdr, "ttya/%s (libwebsockets/%s)", TTYA_VERSION, lws_get_library_version());
+  snprintf(server_hdr, sizeof(server_hdr), "ttya/%s (libwebsockets/%s)", TTYA_VERSION, lws_get_library_version());
   info.server_string = server_hdr;
 
 #if LWS_LIBRARY_VERSION_NUMBER < 4000000
@@ -615,8 +615,8 @@ int main(int argc, char** argv) {
   lwsl_notice(" Listening on port: %d\n", port);
 
   if (browser) {
-    char url[30];
-    sprintf(url, "%s://localhost:%d", ssl ? "https" : "http", port);
+    char url[32];
+    snprintf(url, sizeof(url), "%s://localhost:%d", ssl ? "https" : "http", port);
     open_uri(url);
   }
 
