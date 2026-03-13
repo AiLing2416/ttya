@@ -295,9 +295,12 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
           if (lws_get_urlarg_by_name(wsi, "filename", filename, sizeof(filename)) > 0) {
             size_t current_len = strlen(full_path);
             if (current_len > 0 && full_path[current_len - 1] != '/') {
-              strncat(full_path, "/", sizeof(full_path) - strlen(full_path) - 1);
+              if (current_len + 1 < sizeof(full_path)) {
+                full_path[current_len++] = '/';
+                full_path[current_len] = '\0';
+              }
             }
-            strncat(full_path, filename, sizeof(full_path) - strlen(full_path) - 1);
+            strncat(full_path + current_len, filename, sizeof(full_path) - current_len - 1);
           } else {
             int n = snprintf(buf, sizeof(buf), "{\"error\": \"Target is a directory but no filename provided\"}");
             if (lws_add_http_header_status(wsi, HTTP_STATUS_BAD_REQUEST, &p, end) ||
