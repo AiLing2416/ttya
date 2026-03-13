@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <signal.h>
-#include <ctype.h>
 #include "utils.h"
 
 int test_endswith(const char *str, const char *suffix, bool expected) {
@@ -18,13 +17,7 @@ int test_endswith(const char *str, const char *suffix, bool expected) {
 int test_get_sig_name(int sig, const char *expected) {
     char buf[32];
     get_sig_name(sig, buf, sizeof(buf));
-    if (expected == NULL) {
-        // Just check if it's SIGUNKNOWN or some other "SIG..." string when we don't know the exact name
-        if (strncmp(buf, "SIG", 3) != 0) {
-            printf("FAIL: get_sig_name(%d) expected SIG..., got \"%s\"\n", sig, buf);
-            return 1;
-        }
-    } else if (strcmp(buf, expected) != 0) {
+    if (strcmp(buf, expected) != 0) {
         printf("FAIL: get_sig_name(%d) expected \"%s\", got \"%s\"\n", sig, expected, buf);
         return 1;
     }
@@ -59,10 +52,11 @@ int main() {
     failures += test_endswith("", "", true);
 
     printf("\nTesting get_sig_name...\n");
-    failures += test_get_sig_name(SIGHUP, "SIGHUP");
-    failures += test_get_sig_name(SIGINT, "SIGINT");
-    failures += test_get_sig_name(SIGKILL, "SIGKILL");
-    failures += test_get_sig_name(SIGTERM, "SIGTERM");
+    // We use indices instead of macros like SIGHUP because they are not available on all platforms (e.g. MinGW)
+    failures += test_get_sig_name(1, "SIGHUP");
+    failures += test_get_sig_name(2, "SIGINT");
+    failures += test_get_sig_name(9, "SIGKILL");
+    failures += test_get_sig_name(15, "SIGTERM");
     failures += test_get_sig_name(0, "SIGZERO");
     // signal 999 is definitely unknown
     failures += test_get_sig_name(999, "SIGUNKNOWN");
@@ -70,17 +64,13 @@ int main() {
     failures += test_get_sig_name(-1, "SIGUNKNOWN");
 
     printf("\nTesting get_sig...\n");
-    failures += test_get_sig("HUP", SIGHUP);
-    failures += test_get_sig("SIGHUP", SIGHUP);
-    failures += test_get_sig("hup", SIGHUP);
-    failures += test_get_sig("sighup", SIGHUP);
-    failures += test_get_sig("KILL", SIGKILL);
-    failures += test_get_sig("SIGKILL", SIGKILL);
-
-    char sigkill_buf[10];
-    sprintf(sigkill_buf, "%d", SIGKILL);
-    failures += test_get_sig(sigkill_buf, SIGKILL);
-
+    failures += test_get_sig("HUP", 1);
+    failures += test_get_sig("SIGHUP", 1);
+    failures += test_get_sig("hup", 1);
+    failures += test_get_sig("sighup", 1);
+    failures += test_get_sig("KILL", 9);
+    failures += test_get_sig("SIGKILL", 9);
+    failures += test_get_sig("9", 9);
     failures += test_get_sig("invalid", 0);
     failures += test_get_sig("SI", 0);
     failures += test_get_sig("", 0);
