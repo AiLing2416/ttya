@@ -13,6 +13,40 @@ int test_endswith(const char *str, const char *suffix, bool expected) {
     return 0;
 }
 
+int test_uppercase(const char *input, const char *expected) {
+    char buf[256];
+    memset(buf, 0, sizeof(buf));
+    strncpy(buf, input, sizeof(buf) - 1);
+    char *ret = uppercase(buf);
+    if (strcmp(buf, expected) != 0) {
+        printf("FAIL: uppercase(\"%s\") expected \"%s\", got \"%s\"\n", input, expected, buf);
+        return 1;
+    }
+    if (ret != buf + strlen(expected)) {
+        printf("FAIL: uppercase(\"%s\") returned wrong pointer\n", input);
+        return 1;
+    }
+    printf("PASS: uppercase(\"%s\") == \"%s\"\n", input, buf);
+    return 0;
+}
+
+int test_lowercase(const char *input, const char *expected) {
+    char buf[256];
+    memset(buf, 0, sizeof(buf));
+    strncpy(buf, input, sizeof(buf) - 1);
+    char *ret = lowercase(buf);
+    if (strcmp(buf, expected) != 0) {
+        printf("FAIL: lowercase(\"%s\") expected \"%s\", got \"%s\"\n", input, expected, buf);
+        return 1;
+    }
+    if (ret != buf + strlen(expected)) {
+        printf("FAIL: lowercase(\"%s\") returned wrong pointer\n", input);
+        return 1;
+    }
+    printf("PASS: lowercase(\"%s\") == \"%s\"\n", input, buf);
+    return 0;
+}
+
 int main() {
     int failures = 0;
 
@@ -35,10 +69,30 @@ int main() {
     failures += test_endswith("abc", "", true);      // empty suffix
     failures += test_endswith("", "", true);         // empty string and empty suffix
 
+    printf("\nTesting uppercase...\n");
+    // Happy paths
+    failures += test_uppercase("hello", "HELLO");
+    failures += test_uppercase("Hello", "HELLO");
+    // Edge cases
+    failures += test_uppercase("HELLO", "HELLO");
+    failures += test_uppercase("123!@#", "123!@#");
+    failures += test_uppercase("", "");
+    failures += test_uppercase("a", "A");
+
+    printf("\nTesting lowercase...\n");
+    // Happy paths
+    failures += test_lowercase("HELLO", "hello");
+    failures += test_lowercase("Hello", "hello");
+    // Edge cases
+    failures += test_lowercase("hello", "hello");
+    failures += test_lowercase("123!@#", "123!@#");
+    failures += test_lowercase("", "");
+    failures += test_lowercase("A", "a");
+
     if (failures > 0) {
-        printf("%d tests failed!\n", failures);
+        printf("\n%d tests failed!\n", failures);
         return 1;
     }
-    printf("All tests passed!\n");
+    printf("\nAll tests passed!\n");
     return 0;
 }
