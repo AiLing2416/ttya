@@ -203,16 +203,31 @@ static WCHAR *to_utf16(char *str) {
 static WCHAR *join_args(char **argv) {
   char args[256] = {0};
   char **ptr = argv;
+  size_t current_len = 0;
   for (; *ptr; ptr++) {
     char *quoted = (char *) quote_arg(*ptr);
-    size_t arg_len = strlen(args) + 1;
     size_t quoted_len = strlen(quoted);
-    if (arg_len == 1) memset(args, 0, 2);
-    if (arg_len != 1) strcat(args, " ");
-    strncat(args, quoted, quoted_len);
+
+    if (current_len > 0) {
+      if (current_len + 1 < 256) {
+        args[current_len++] = ' ';
+        args[current_len] = '\0';
+      }
+    }
+
+    size_t to_copy = quoted_len;
+    if (current_len + to_copy >= 256) {
+      to_copy = 255 - current_len;
+    }
+
+    if (to_copy > 0) {
+      memcpy(args + current_len, quoted, to_copy);
+      current_len += to_copy;
+      args[current_len] = '\0';
+    }
+
     if (quoted != *ptr) free(quoted);
   }
-  if (args[255] != '\0') args[255] = '\0';  // truncate
   return to_utf16(args);
 }
 
