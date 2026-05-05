@@ -25,6 +25,9 @@ char *lowercase(char *s);
 // Check whether str ends with suffix
 bool endswith(const char *str, const char *suffix);
 
+// Constant-time string comparison
+int timingsafe_strcmp(const char *s1, const char *s2);
+
 // Get human readable signal string
 int get_sig_name(int sig, char *buf, size_t len);
 

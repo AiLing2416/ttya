@@ -47,6 +47,17 @@ int test_lowercase(const char *input, const char *expected) {
     return 0;
 }
 
+int test_timingsafe_strcmp(const char *s1, const char *s2, int expected_match) {
+    int actual = timingsafe_strcmp(s1, s2);
+    int match = (actual == 0);
+    if (match != expected_match) {
+        printf("FAIL: timingsafe_strcmp(\"%s\", \"%s\") expected match %d, got match %d (return value: %d)\n", s1, s2, expected_match, match, actual);
+        return 1;
+    }
+    printf("PASS: timingsafe_strcmp(\"%s\", \"%s\") == %s (return value: %d)\n", s1, s2, match ? "match" : "mismatch", actual);
+    return 0;
+}
+
 int main() {
     int failures = 0;
 
@@ -88,6 +99,24 @@ int main() {
     failures += test_lowercase("123!@#", "123!@#");
     failures += test_lowercase("", "");
     failures += test_lowercase("A", "a");
+
+    printf("\nTesting timingsafe_strcmp...\n");
+    // Happy paths (match)
+    failures += test_timingsafe_strcmp("hello", "hello", 1);
+    failures += test_timingsafe_strcmp("", "", 1);
+    failures += test_timingsafe_strcmp("a", "a", 1);
+    failures += test_timingsafe_strcmp("verylongstringthatshouldmatch", "verylongstringthatshouldmatch", 1);
+
+    // Mismatches (equal length)
+    failures += test_timingsafe_strcmp("hello", "hellp", 0);
+    failures += test_timingsafe_strcmp("abcde", "abXde", 0);
+    failures += test_timingsafe_strcmp("X", "Y", 0);
+
+    // Mismatches (different length)
+    failures += test_timingsafe_strcmp("hello", "hell", 0);
+    failures += test_timingsafe_strcmp("hell", "hello", 0);
+    failures += test_timingsafe_strcmp("", "a", 0);
+    failures += test_timingsafe_strcmp("a", "", 0);
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);
