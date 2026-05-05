@@ -50,6 +50,7 @@ struct pss_tty {
   struct lws *wsi;
   char *buffer;
   size_t len;
+  size_t cap;
 
   pty_process *process;
   pty_buf_t *pty_buf;
