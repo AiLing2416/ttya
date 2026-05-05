@@ -269,33 +269,17 @@ static int parse_int(char* name, char* str) {
 }
 
 static int calc_command_start(int argc, char** argv) {
-  // make a copy of argc and argv
-  int argc_copy = argc;
-  char** argv_copy = xmalloc(sizeof(char*) * argc);
-  for (int i = 0; i < argc; i++) {
-    argv_copy[i] = strdup(argv[i]);
-  }
+  int start;
+  size_t len = strlen(opt_string);
+  char os[len + 2];
+  os[0] = '+';
+  memcpy(os + 1, opt_string, len + 1);
 
   // do not print error message for invalid option
   opterr = 0;
-  while (getopt_long(argc_copy, argv_copy, opt_string, options, NULL) != -1);
-
-  int start = argc;
-  if (optind < argc) {
-    char* command = argv_copy[optind];
-    for (int i = 0; i < argc; i++) {
-      if (strcmp(argv[i], command) == 0) {
-        start = i;
-        break;
-      }
-    }
-  }
-
-  // free argv copy
-  for (int i = 0; i < argc; i++) {
-    free(argv_copy[i]);
-  }
-  free(argv_copy);
+  optind = 0;
+  while (getopt_long(argc, argv, os, options, NULL) != -1);
+  start = optind;
 
   // reset for next use
   opterr = 1;
