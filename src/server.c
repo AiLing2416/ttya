@@ -591,7 +591,8 @@ int main(int argc, char** argv) {
   if (server->auth_header != NULL) {
     size_t auth_header_len = strlen(server->auth_header);
     server->auth_header = xrealloc(server->auth_header, auth_header_len + 2);
-    strcat(server->auth_header + auth_header_len, ":");
+    server->auth_header[auth_header_len] = ':';
+    server->auth_header[auth_header_len + 1] = '\0';
     lowercase(server->auth_header);
   }
 
