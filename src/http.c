@@ -133,14 +133,10 @@ static void access_log(struct lws* wsi, const char* path) {
   lwsl_notice("HTTP %s - %s\n", path, rip);
 }
 
-static int send_error(struct lws* wsi, struct pss_http* pss, int status, const char* msg) {
+static int send_json(struct lws* wsi, struct pss_http* pss, int status, const char* body, size_t body_len) {
   unsigned char buffer[1024 + LWS_PRE], *p, *end;
-  char body[512];
   p = buffer + LWS_PRE;
   end = p + sizeof(buffer) - LWS_PRE;
-
-  int body_len = snprintf(body, sizeof(body), "{\"error\": \"%s\"}", msg);
-  if (body_len >= (int)sizeof(body)) body_len = sizeof(body) - 1;
 
   if (lws_add_http_header_status(wsi, status, &p, end) ||
       lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (unsigned char*)"application/json", 16, &p, end) ||
@@ -150,15 +146,19 @@ static int send_error(struct lws* wsi, struct pss_http* pss, int status, const c
   }
 
   pss->buffer = pss->ptr = strdup(body);
-  pss->len = (size_t)body_len;
+  pss->len = body_len;
   lws_callback_on_writable(wsi);
 
   return 0;
 }
 
-// Re-implementing usage inside callback to avoid helper complexity with pss/wsi mixture for now,
-// or use a macro/inline style.
-// Actually, let's just inline the JSON error response construction since it repeats.
+static int send_error(struct lws* wsi, struct pss_http* pss, int status, const char* msg) {
+  char body[512];
+  int body_len = snprintf(body, sizeof(body), "{\"error\": \"%s\"}", msg);
+  if (body_len >= (int)sizeof(body)) body_len = sizeof(body) - 1;
+
+  return send_json(wsi, pss, status, body, (size_t)body_len);
+}
 
 int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in, size_t len) {
   struct pss_http* pss = (struct pss_http*)user;
@@ -193,8 +193,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         }
         char path_arg[4096] = "";
         if (lws_get_urlarg_by_name(wsi, "path", path_arg, sizeof(path_arg)) < 0) {
-          lws_return_http_status(wsi, HTTP_STATUS_BAD_REQUEST, "Missing path arg");
-          return 1;
+          return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Missing path arg");
         }
 
         if (!check_path(path_arg, server->cwd ? server->cwd : ".")) {
@@ -210,17 +209,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         add_download_token(token, path_arg);
 
         int n = snprintf(buf, sizeof(buf), "{\"token\": \"%s\"}", token);
-        if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
-            lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (unsigned char*)"application/json", 16, &p,
-                                         end) ||
-            lws_add_http_header_content_length(wsi, (unsigned long)n, &p, end) || lws_finalize_http_header(wsi, &p, end) ||
-            lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
-          return 1;
-
-        pss->buffer = pss->ptr = strdup(buf);
-        pss->len = (size_t)n;
-        lws_callback_on_writable(wsi);
-        return 0;
+        return send_json(wsi, pss, HTTP_STATUS_OK, buf, (size_t)n);
       }
 
       // Handle Download: GET /download/<token>
@@ -228,8 +217,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         char* token = pss->path + 10;
         char* filepath = get_and_revoke_download_token(token);
         if (!filepath) {
-          lws_return_http_status(wsi, HTTP_STATUS_NOT_FOUND, "Invalid or expired token");
-          return 1;
+          return send_error(wsi, pss, HTTP_STATUS_NOT_FOUND, "Invalid or expired token");
         }
 
         char* filename = strrchr(filepath, '/');
@@ -256,8 +244,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         }
         char path_arg[4096] = "";
         if (lws_get_urlarg_by_name(wsi, "path", path_arg, sizeof(path_arg)) < 0) {
-          lws_return_http_status(wsi, HTTP_STATUS_BAD_REQUEST, "Missing path arg");
-          return 1;
+          return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Missing path arg");
         }
 
         char full_path[4096];
@@ -312,18 +299,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
       if (strcmp(pss->path, endpoints.token) == 0) {
         const char* credential = server->credential != NULL ? server->credential : "";
         int n = snprintf(buf, sizeof(buf), "{\"token\": \"%s\"}", credential);
-        if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
-            lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE,
-                                         (unsigned char*)"application/json;charset=utf-8", 30, &p, end) ||
-            lws_add_http_header_content_length(wsi, (unsigned long)n, &p, end) ||
-            lws_finalize_http_header(wsi, &p, end) ||
-            lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
-          return 1;
-
-        pss->buffer = pss->ptr = strdup(buf);
-        pss->len = (size_t)n;
-        lws_callback_on_writable(wsi);
-        break;
+        return send_json(wsi, pss, HTTP_STATUS_OK, buf, (size_t)n);
       }
 
       // redirects `/base-path` to `/base-path/`
