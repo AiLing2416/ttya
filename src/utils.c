@@ -69,6 +69,19 @@ int get_sig(const char *sig_name) {
   return atoi(sig_name);
 }
 
+bool timingsafe_strcmp(const char *s1, const char *s2) {
+  const unsigned char *u1 = (const unsigned char *)s1;
+  const unsigned char *u2 = (const unsigned char *)s2;
+  size_t len1 = strlen(s1);
+  size_t len2 = strlen(s2);
+  size_t len = len1 < len2 ? len1 : len2;
+  size_t res = len1 ^ len2;
+  for (size_t i = 0; i < len; i++) {
+    res |= (size_t)(u1[i] ^ u2[i]);
+  }
+  return res == 0;
+}
+
 bool check_path(const char *path, const char *base) {
 #ifdef _WIN32
   char *abs_base = _fullpath(NULL, base, 0);

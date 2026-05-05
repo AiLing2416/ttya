@@ -47,6 +47,16 @@ int test_lowercase(const char *input, const char *expected) {
     return 0;
 }
 
+int test_timingsafe_strcmp(const char *s1, const char *s2, bool expected) {
+    bool actual = timingsafe_strcmp(s1, s2);
+    if (actual != expected) {
+        printf("FAIL: timingsafe_strcmp(\"%s\", \"%s\") expected %d, got %d\n", s1, s2, expected, actual);
+        return 1;
+    }
+    printf("PASS: timingsafe_strcmp(\"%s\", \"%s\") == %d\n", s1, s2, actual);
+    return 0;
+}
+
 int main() {
     int failures = 0;
 
@@ -88,6 +98,27 @@ int main() {
     failures += test_lowercase("123!@#", "123!@#");
     failures += test_lowercase("", "");
     failures += test_lowercase("A", "a");
+
+    printf("\nTesting timingsafe_strcmp...\n");
+    // Happy paths
+    failures += test_timingsafe_strcmp("hello", "hello", true);
+    failures += test_timingsafe_strcmp("password", "password", true);
+
+    // Negative cases
+    failures += test_timingsafe_strcmp("hello", "world", false);
+    failures += test_timingsafe_strcmp("password", "passworD", false); // last char different
+    failures += test_timingsafe_strcmp("password", "Password", false); // case sensitive
+
+    // Length mismatches
+    failures += test_timingsafe_strcmp("hello", "hell", false);
+    failures += test_timingsafe_strcmp("hell", "hello", false);
+    failures += test_timingsafe_strcmp("abc", "abcdef", false);
+
+    // Edge cases
+    failures += test_timingsafe_strcmp("", "", true);
+    failures += test_timingsafe_strcmp("a", "a", true);
+    failures += test_timingsafe_strcmp("", "a", false);
+    failures += test_timingsafe_strcmp("a", "", false);
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);

@@ -34,6 +34,9 @@ int get_sig(const char *sig_name);
 // Check path is safe
 bool check_path(const char *path, const char *base);
 
+// Constant time string comparison
+bool timingsafe_strcmp(const char *s1, const char *s2);
+
 // Open uri with the default application of system
 int open_uri(char *uri);
 
