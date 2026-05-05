@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 #if defined(__linux__) && !defined(__ANDROID__)
 const char *sys_signame[NSIG] = {"zero", "HUP",   "INT",  "QUIT", "ILL",  "TRAP", "ABRT", "UNUSED", "FPE",
                                  "KILL", "USR1",  "SEGV", "USR2", "PIPE", "ALRM", "TERM", "STKFLT", "CHLD",
@@ -99,18 +105,36 @@ bool check_path(const char *path, const char *base) {
 }
 
 int open_uri(char *uri) {
-#ifdef __APPLE__
-  char command[256];
-  snprintf(command, sizeof(command), "open %s > /dev/null 2>&1", uri);
-  return system(command);
-#elif defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__)
   return ShellExecute(0, 0, uri, 0, 0, SW_SHOW) > (HINSTANCE)32 ? 0 : 1;
 #else
+#ifndef __APPLE__
   // check if X server is running
   if (system("xset -q > /dev/null 2>&1")) return 1;
-  char command[256];
-  snprintf(command, sizeof(command), "xdg-open %s > /dev/null 2>&1", uri);
-  return system(command);
+#endif
+
+  pid_t pid = fork();
+  if (pid < 0) return 1;
+
+  if (pid == 0) {
+    int fd = open("/dev/null", O_RDWR);
+    if (fd != -1) {
+      dup2(fd, STDIN_FILENO);
+      dup2(fd, STDOUT_FILENO);
+      dup2(fd, STDERR_FILENO);
+      close(fd);
+    }
+#ifdef __APPLE__
+    execlp("open", "open", uri, NULL);
+#else
+    execlp("xdg-open", "xdg-open", uri, NULL);
+#endif
+    _exit(1);
+  }
+
+  int status;
+  waitpid(pid, &status, 0);
+  return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
 #endif
 }
 

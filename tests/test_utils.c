@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "utils.h"
 
 int test_endswith(const char *str, const char *suffix, bool expected) {
@@ -47,6 +50,45 @@ int test_lowercase(const char *input, const char *expected) {
     return 0;
 }
 
+int test_open_uri_injection() {
+    printf("\nTesting open_uri for injection vulnerability...\n");
+    const char *injected_file = "injected_file";
+    unlink(injected_file);
+
+    // Create fake xset and xdg-open that do nothing but succeed
+    if (system("echo '#!/bin/sh\nexit 0' > xset && chmod +x xset") != 0) return 1;
+    if (system("echo '#!/bin/sh\nexit 0' > xdg-open && chmod +x xdg-open") != 0) return 1;
+
+    char *old_path = getenv("PATH");
+    char cwd[512];
+    if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
+
+    size_t new_path_len = strlen(cwd) + 1 + (old_path ? strlen(old_path) : 0) + 1;
+    char *new_path = malloc(new_path_len);
+    if (new_path == NULL) return 1;
+
+    snprintf(new_path, new_path_len, "%s:%s", cwd, old_path ? old_path : "");
+    setenv("PATH", new_path, 1);
+    free(new_path);
+
+    char malicious_uri[] = "http://example.com;touch injected_file";
+    open_uri(malicious_uri);
+
+    struct stat st;
+    int result = 0;
+    if (stat(injected_file, &st) == 0) {
+        printf("FAIL: open_uri is VULNERABLE to command injection! (injected_file was created)\n");
+        unlink(injected_file);
+        result = 1;
+    } else {
+        printf("PASS: open_uri does not appear to be vulnerable to this injection.\n");
+    }
+
+    unlink("xset");
+    unlink("xdg-open");
+    return result;
+}
+
 int main() {
     int failures = 0;
 
@@ -88,6 +130,8 @@ int main() {
     failures += test_lowercase("123!@#", "123!@#");
     failures += test_lowercase("", "");
     failures += test_lowercase("A", "a");
+
+    failures += test_open_uri_injection();
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);
