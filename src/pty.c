@@ -49,7 +49,7 @@ static void async_free_cb(uv_handle_t *handle) {
 pty_buf_t *pty_buf_init(char *base, size_t len) {
   pty_buf_t *buf = xmalloc(sizeof(pty_buf_t));
   buf->base = xmalloc(len);
-  memcpy(buf->base, base, len);
+  if (len > 0) memcpy(buf->base, base, len);
   buf->len = len;
   return buf;
 }
