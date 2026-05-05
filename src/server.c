@@ -236,6 +236,7 @@ static void server_free(struct server* ts) {
 
 static void signal_cb(uv_signal_t* watcher, int signum) {
   char sig_name[20];
+  (void) signum;
 
   switch (watcher->signum) {
     case SIGINT:

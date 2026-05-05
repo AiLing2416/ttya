@@ -36,6 +36,7 @@ void (WINAPI *pClosePseudoConsole)(HPCON);
 #endif
 
 static void alloc_cb(uv_handle_t *unused, size_t suggested_size, uv_buf_t *buf) {
+  (void) unused;
   buf->base = xmalloc(suggested_size);
   buf->len = suggested_size;
 }
@@ -76,6 +77,7 @@ done:
 
 static void write_cb(uv_write_t *req, int unused) {
   pty_buf_t *buf = (pty_buf_t *) req->data;
+  (void) unused;
   pty_buf_free(buf);
   free(req);
 }
@@ -295,10 +297,14 @@ done:
   return ret;
 }
 
-static void connect_cb(uv_connect_t *req, int status) { free(req); }
+static void connect_cb(uv_connect_t *req, int status) {
+  (void) status;
+  free(req);
+}
 
 static void CALLBACK conpty_exit(void *context, BOOLEAN unused) {
   pty_process *process = (pty_process *) context;
+  (void) unused;
   uv_async_send(&process->async);
 }
 
