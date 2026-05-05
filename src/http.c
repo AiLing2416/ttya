@@ -36,7 +36,7 @@ static void add_download_token(const char* token, const char* filepath) {
 static char* get_and_revoke_download_token(const char* token) {
   struct download_token** curr = &download_tokens;
   while (*curr) {
-    if (strcmp((*curr)->token, token) == 0) {
+    if (timingsafe_strcmp((*curr)->token, token) == 0) {
       struct download_token* found = *curr;
       *curr = found->next;
       char* fp = found->filepath;
@@ -77,7 +77,7 @@ static int check_auth(struct lws* wsi, struct pss_http* pss) {
     char buf[256];
     int len = lws_hdr_copy(wsi, buf, sizeof(buf), WSI_TOKEN_HTTP_AUTHORIZATION);
     if (len >= 7 && strstr(buf, "Basic ")) {
-      if (!strcmp(buf + 6, server->credential)) return AUTH_OK;
+      if (timingsafe_strcmp(buf + 6, server->credential) == 0) return AUTH_OK;
     }
     return send_unauthorized(wsi, HTTP_STATUS_UNAUTHORIZED, WSI_TOKEN_HTTP_WWW_AUTHENTICATE);
   }

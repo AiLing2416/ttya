@@ -55,6 +55,19 @@ bool endswith(const char *str, const char *suffix) {
   return str_len >= suffix_len && !strcmp(str + (str_len - suffix_len), suffix);
 }
 
+int timingsafe_strcmp(const char *s1, const char *s2) {
+  size_t len1 = strlen(s1);
+  size_t len2 = strlen(s2);
+  size_t len = len1 < len2 ? len1 : len2;
+  size_t res = 0;
+
+  for (size_t i = 0; i <= len; i++) {
+    res |= (size_t)((unsigned char)s1[i] ^ (unsigned char)s2[i]);
+  }
+
+  return (int)(res | (len1 ^ len2));
+}
+
 int get_sig_name(int sig, char *buf, size_t len) {
   int n = snprintf(buf, len, "SIG%s", sig < NSIG ? sys_signame[sig] : "unknown");
   uppercase(buf);
