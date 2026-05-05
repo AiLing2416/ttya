@@ -289,11 +289,15 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
 
     case LWS_CALLBACK_RECEIVE:
       if (pss->buffer == NULL) {
-        pss->buffer = xmalloc(len);
+        pss->cap = len;
+        pss->buffer = xmalloc(pss->cap);
         pss->len = len;
         memcpy(pss->buffer, in, len);
       } else {
-        pss->buffer = xrealloc(pss->buffer, pss->len + len);
+        if (pss->len + len > pss->cap) {
+          pss->cap = (pss->len + len) * 2;
+          pss->buffer = xrealloc(pss->buffer, pss->cap);
+        }
         memcpy(pss->buffer + pss->len, in, len);
         pss->len += len;
       }
@@ -363,6 +367,7 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
       if (pss->buffer != NULL) {
         free(pss->buffer);
         pss->buffer = NULL;
+        pss->cap = 0;
       }
       break;
 
@@ -371,7 +376,11 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
 
       server->client_count--;
       lwsl_notice("WS closed from %s, clients: %d\n", pss->address, server->client_count);
-      if (pss->buffer != NULL) free(pss->buffer);
+      if (pss->buffer != NULL) {
+        free(pss->buffer);
+        pss->buffer = NULL;
+        pss->cap = 0;
+      }
       if (pss->pty_buf != NULL) pty_buf_free(pss->pty_buf);
       for (int i = 0; i < pss->argc; i++) {
         free(pss->args[i]);
