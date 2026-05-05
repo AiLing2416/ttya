@@ -46,6 +46,7 @@ struct pss_tty {
   char path[128];
   char **args;
   int argc;
+  int args_cap;
 
   struct lws *wsi;
   char *buffer;

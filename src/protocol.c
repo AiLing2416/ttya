@@ -241,7 +241,10 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
       if (server->url_arg) {
         while (lws_hdr_copy_fragment(wsi, buf, sizeof(buf), WSI_TOKEN_HTTP_URI_ARGS, n++) > 0) {
           if (strncmp(buf, "arg=", 4) == 0) {
-            pss->args = xrealloc(pss->args, (pss->argc + 1) * sizeof(char *));
+            if (pss->argc >= pss->args_cap) {
+              pss->args_cap = pss->args_cap == 0 ? 4 : pss->args_cap * 2;
+              pss->args = xrealloc(pss->args, pss->args_cap * sizeof(char *));
+            }
             pss->args[pss->argc] = strdup(&buf[4]);
             pss->argc++;
           }
@@ -373,6 +376,10 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
       for (int i = 0; i < pss->argc; i++) {
         free(pss->args[i]);
       }
+      free(pss->args);
+      pss->args = NULL;
+      pss->argc = 0;
+      pss->args_cap = 0;
 
       if (pss->process != NULL) {
         ((pty_ctx_t *)pss->process->ctx)->ws_closed = true;
