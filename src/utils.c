@@ -56,7 +56,7 @@ bool endswith(const char *str, const char *suffix) {
 }
 
 int get_sig_name(int sig, char *buf, size_t len) {
-  int n = snprintf(buf, len, "SIG%s", sig < NSIG ? sys_signame[sig] : "unknown");
+  int n = snprintf(buf, len, "SIG%s", (sig >= 0 && sig < NSIG && sys_signame[sig]) ? sys_signame[sig] : "unknown");
   uppercase(buf);
   return n;
 }

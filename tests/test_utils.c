@@ -47,6 +47,18 @@ int test_lowercase(const char *input, const char *expected) {
     return 0;
 }
 
+int test_get_sig_name(int sig, const char *expected) {
+    char buf[256];
+    memset(buf, 0, sizeof(buf));
+    get_sig_name(sig, buf, sizeof(buf));
+    if (strcmp(buf, expected) != 0) {
+        printf("FAIL: get_sig_name(%d) expected \"%s\", got \"%s\"\n", sig, expected, buf);
+        return 1;
+    }
+    printf("PASS: get_sig_name(%d) == \"%s\"\n", sig, buf);
+    return 0;
+}
+
 int main() {
     int failures = 0;
 
@@ -88,6 +100,19 @@ int main() {
     failures += test_lowercase("123!@#", "123!@#");
     failures += test_lowercase("", "");
     failures += test_lowercase("A", "a");
+
+    printf("\nTesting get_sig_name...\n");
+    // Happy paths
+    failures += test_get_sig_name(1, "SIGHUP");
+    failures += test_get_sig_name(2, "SIGINT");
+    failures += test_get_sig_name(9, "SIGKILL");
+    failures += test_get_sig_name(15, "SIGTERM");
+    failures += test_get_sig_name(0, "SIGZERO");
+
+    // Edge cases
+    failures += test_get_sig_name(100, "SIGUNKNOWN");
+    failures += test_get_sig_name(-1, "SIGUNKNOWN");
+    failures += test_get_sig_name(32, "SIGUNKNOWN"); // NULL entry
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);
