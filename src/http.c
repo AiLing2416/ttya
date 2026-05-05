@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <libwebsockets.h>
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -270,13 +271,8 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
           char filename[256] = "";
           if (lws_get_urlarg_by_name(wsi, "filename", filename, sizeof(filename)) > 0) {
             size_t current_len = strlen(full_path);
-            if (current_len > 0 && full_path[current_len - 1] != '/') {
-              if (current_len + 1 < sizeof(full_path)) {
-                full_path[current_len++] = '/';
-                full_path[current_len] = '\0';
-              }
-            }
-            strncat(full_path + current_len, filename, sizeof(full_path) - current_len - 1);
+            bool add_slash = current_len > 0 && full_path[current_len - 1] != '/';
+            snprintf(full_path + current_len, sizeof(full_path) - current_len, "%s%s", add_slash ? "/" : "", filename);
           } else {
             return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Target is a directory but no filename provided");
           }
