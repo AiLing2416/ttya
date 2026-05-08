@@ -58,6 +58,26 @@ int test_timingsafe_strcmp(const char *s1, const char *s2, int expected_match) {
     return 0;
 }
 
+int test_open_uri_injection() {
+    printf("Testing open_uri for command injection...\n");
+    // Ensure clean state
+    remove("/tmp/pwned_ttya");
+
+    // This should not create the file /tmp/pwned_ttya
+    char *injection_uri = "http://localhost; touch /tmp/pwned_ttya";
+    open_uri(injection_uri);
+
+    FILE *f = fopen("/tmp/pwned_ttya", "r");
+    if (f) {
+        printf("FAIL: Command injection successful! /tmp/pwned_ttya was created.\n");
+        fclose(f);
+        remove("/tmp/pwned_ttya");
+        return 1;
+    }
+    printf("PASS: Command injection failed (as expected).\n");
+    return 0;
+}
+
 int main() {
     int failures = 0;
 
@@ -117,6 +137,8 @@ int main() {
     failures += test_timingsafe_strcmp("hell", "hello", 0);
     failures += test_timingsafe_strcmp("", "a", 0);
     failures += test_timingsafe_strcmp("a", "", 0);
+
+    failures += test_open_uri_injection();
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);

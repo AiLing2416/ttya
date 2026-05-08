@@ -6,6 +6,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 #if defined(__linux__) && !defined(__ANDROID__)
 const char *sys_signame[NSIG] = {"zero", "HUP",   "INT",  "QUIT", "ILL",  "TRAP", "ABRT", "UNUSED", "FPE",
                                  "KILL", "USR1",  "SEGV", "USR2", "PIPE", "ALRM", "TERM", "STKFLT", "CHLD",
@@ -111,19 +118,42 @@ bool check_path(const char *path, const char *base) {
   return ret;
 }
 
+#ifndef _WIN32
+static int run_command(char *const argv[]) {
+  pid_t pid = fork();
+  if (pid < 0) return -1;
+
+  if (pid == 0) {
+    int dev_null = open("/dev/null", O_RDWR);
+    if (dev_null != -1) {
+      dup2(dev_null, STDIN_FILENO);
+      dup2(dev_null, STDOUT_FILENO);
+      dup2(dev_null, STDERR_FILENO);
+      close(dev_null);
+    }
+    execvp(argv[0], argv);
+    _exit(127);
+  }
+
+  int status;
+  if (waitpid(pid, &status, 0) == -1) return -1;
+  if (WIFEXITED(status)) return WEXITSTATUS(status);
+  return -1;
+}
+#endif
+
 int open_uri(char *uri) {
 #ifdef __APPLE__
-  char command[256];
-  snprintf(command, sizeof(command), "open %s > /dev/null 2>&1", uri);
-  return system(command);
+  char *argv[] = {"open", uri, NULL};
+  return run_command(argv);
 #elif defined(_WIN32) || defined(__CYGWIN__)
   return ShellExecute(0, 0, uri, 0, 0, SW_SHOW) > (HINSTANCE)32 ? 0 : 1;
 #else
   // check if X server is running
-  if (system("xset -q > /dev/null 2>&1")) return 1;
-  char command[256];
-  snprintf(command, sizeof(command), "xdg-open %s > /dev/null 2>&1", uri);
-  return system(command);
+  char *xset_argv[] = {"xset", "-q", NULL};
+  if (run_command(xset_argv)) return 1;
+  char *xdg_open_argv[] = {"xdg-open", uri, NULL};
+  return run_command(xdg_open_argv);
 #endif
 }
 
