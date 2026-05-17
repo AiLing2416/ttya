@@ -6,29 +6,28 @@ const rename = require('gulp-rename');
 const through2 = require('through2');
 
 const genHeader = (size, buf, len) => {
-    let idx = 0;
-    let data = 'unsigned char index_html[] = {\n  ';
+    const parts = new Array(len * 2 + 4);
+    parts[0] = 'unsigned char index_html[] = {\n  ';
 
+    let idx = 0;
+    let p = 1;
     for (const value of buf) {
         idx++;
-
         const current = value < 0 ? value + 256 : value;
 
-        data += '0x';
-        data += (current >>> 4).toString(16);
-        data += (current & 0xf).toString(16);
+        parts[p++] = '0x' + (current >>> 4).toString(16) + (current & 0xf).toString(16);
 
         if (idx === len) {
-            data += '\n';
+            parts[p++] = '\n';
         } else {
-            data += idx % 12 === 0 ? ',\n  ' : ', ';
+            parts[p++] = idx % 12 === 0 ? ',\n  ' : ', ';
         }
     }
 
-    data += '};\n';
-    data += `unsigned int index_html_len = ${len};\n`;
-    data += `unsigned int index_html_size = ${size};\n`;
-    return data;
+    parts[p++] = '};\n';
+    parts[p++] = `unsigned int index_html_len = ${len};\n`;
+    parts[p++] = `unsigned int index_html_size = ${size};\n`;
+    return parts.join('');
 };
 let fileSize = 0;
 
