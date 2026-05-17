@@ -249,30 +249,40 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         }
 
         char full_path[4096];
-        strncpy(full_path, path_arg, sizeof(full_path) - 1);
-        full_path[sizeof(full_path) - 1] = 0;
+        int n = snprintf(full_path, sizeof(full_path), "%s", path_arg);
+        if (n >= (int)sizeof(full_path)) {
+          return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Path too long");
+        }
 
         // Check if path is a directory
         struct stat st;
         if (stat(full_path, &st) == 0 && S_ISDIR(st.st_mode)) {
           char filename[256] = "";
           if (lws_get_urlarg_by_name(wsi, "filename", filename, sizeof(filename)) > 0) {
+            if (!validate_filename(filename)) {
+              return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Invalid filename");
+            }
             size_t current_len = strlen(full_path);
             bool add_slash = current_len > 0 && full_path[current_len - 1] != '/';
-            snprintf(full_path + current_len, sizeof(full_path) - current_len, "%s%s", add_slash ? "/" : "", filename);
+            n = snprintf(full_path + current_len, sizeof(full_path) - current_len, "%s%s", add_slash ? "/" : "",
+                         filename);
+            if (n >= (int)(sizeof(full_path) - current_len)) {
+              return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Full path too long");
+            }
           } else {
             return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Target is a directory but no filename provided");
           }
         }
 
         bool path_ok = false;
-        if (stat(full_path, &st) == 0) {
+        if (lstat(full_path, &st) == 0) {
           path_ok = check_path(full_path, server->cwd ? server->cwd : ".");
         } else {
           char path_dup[4096];
-          strncpy(path_dup, full_path, sizeof(path_dup));
-          path_dup[sizeof(path_dup) - 1] = 0;
-          path_ok = check_path(dirname(path_dup), server->cwd ? server->cwd : ".");
+          n = snprintf(path_dup, sizeof(path_dup), "%s", full_path);
+          if (n < (int)sizeof(path_dup)) {
+            path_ok = check_path(dirname(path_dup), server->cwd ? server->cwd : ".");
+          }
         }
 
         if (!path_ok) {
