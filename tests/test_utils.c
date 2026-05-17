@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include "utils.h"
 
 int test_endswith(const char *str, const char *suffix, bool expected) {
@@ -78,6 +81,69 @@ int test_open_uri_injection() {
     return 0;
 }
 
+int test_check_path_case(const char *path, const char *base, bool expected) {
+    bool actual = check_path(path, base);
+    if (actual != expected) {
+        printf("FAIL: check_path(\"%s\", \"%s\") expected %d, got %d\n", path, base, expected, actual);
+        return 1;
+    }
+    printf("PASS: check_path(\"%s\", \"%s\") == %d\n", path, base, actual);
+    return 0;
+}
+
+int test_check_path() {
+    printf("Testing check_path...\n");
+    int failures = 0;
+
+    // Setup
+    if (mkdir("/tmp/ttyd_test", 0755) != 0) {
+        perror("mkdir /tmp/ttyd_test");
+    }
+    if (mkdir("/tmp/ttyd_test/sub", 0755) != 0) {
+        perror("mkdir /tmp/ttyd_test/sub");
+    }
+    if (mkdir("/tmp/ttyd_test_other", 0755) != 0) {
+        perror("mkdir /tmp/ttyd_test_other");
+    }
+    if (mkdir("/tmp/ttyd_test_prefix", 0755) != 0) {
+        perror("mkdir /tmp/ttyd_test_prefix");
+    }
+    FILE *f = fopen("/tmp/ttyd_test/file.txt", "w");
+    if (f) {
+        fclose(f);
+    } else {
+        perror("fopen /tmp/ttyd_test/file.txt");
+    }
+
+    // Happy paths
+    failures += test_check_path_case("/tmp/ttyd_test", "/tmp/ttyd_test", true);
+    failures += test_check_path_case("/tmp/ttyd_test/sub", "/tmp/ttyd_test", true);
+    failures += test_check_path_case("/tmp/ttyd_test/file.txt", "/tmp/ttyd_test", true);
+
+    // Dot dot
+    failures += test_check_path_case("/tmp/ttyd_test/sub/..", "/tmp/ttyd_test", true);
+
+    // Negative cases
+    failures += test_check_path_case("/tmp/ttyd_test_other", "/tmp/ttyd_test", false);
+    failures += test_check_path_case("/tmp/ttyd_test/../ttyd_test_other", "/tmp/ttyd_test", false);
+    failures += test_check_path_case("/", "/tmp/ttyd_test", false);
+
+    // Prefix match but not in directory
+    failures += test_check_path_case("/tmp/ttyd_test_prefix", "/tmp/ttyd_test", false);
+
+    // Non-existent
+    failures += test_check_path_case("/tmp/non_existent_path", "/tmp/ttyd_test", false);
+
+    // Cleanup
+    remove("/tmp/ttyd_test/file.txt");
+    rmdir("/tmp/ttyd_test/sub");
+    rmdir("/tmp/ttyd_test");
+    rmdir("/tmp/ttyd_test_other");
+    rmdir("/tmp/ttyd_test_prefix");
+
+    return failures;
+}
+
 int main() {
     int failures = 0;
 
@@ -139,6 +205,8 @@ int main() {
     failures += test_timingsafe_strcmp("a", "", 0);
 
     failures += test_open_uri_injection();
+
+    failures += test_check_path();
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);
