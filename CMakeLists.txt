@@ -99,7 +99,7 @@ target_include_directories(test_utils PRIVATE src)
 add_test(NAME test_utils COMMAND test_utils)
 
 add_executable(test_pty tests/test_pty.c src/pty.c src/utils.c)
-target_include_directories(test_pty PRIVATE src ${INCLUDE_DIRS})
+target_include_directories(test_pty PRIVATE ${INCLUDE_DIRS})
 target_link_libraries(test_pty ${LINK_LIBS})
 if(NOT WIN32)
     find_library(LIBUTIL NAMES util)

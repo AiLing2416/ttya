@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "pty.h"
+#include "../src/pty.h"
 
 int test_pty_buf_init_free() {
     char data[] = "hello";

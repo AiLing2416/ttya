@@ -265,6 +265,13 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
           }
         }
 
+#ifndef _WIN32
+        struct stat lst;
+        if (lstat(full_path, &lst) == 0 && S_ISLNK(lst.st_mode)) {
+          return send_error(wsi, pss, HTTP_STATUS_FORBIDDEN, "File is a symbolic link");
+        }
+#endif
+
         bool path_ok = false;
         if (stat(full_path, &st) == 0) {
           path_ok = check_path(full_path, server->cwd ? server->cwd : ".");
