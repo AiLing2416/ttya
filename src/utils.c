@@ -106,9 +106,14 @@ bool check_path(const char *path, const char *base) {
 
   if (abs_path) {
     if (strncmp(abs_path, abs_base, strlen(abs_base)) == 0) {
-      char next_char = abs_path[strlen(abs_base)];
-      if (next_char == '\0' || next_char == '/' || next_char == '\\') {
+      size_t base_len = strlen(abs_base);
+      if (base_len > 0 && (abs_base[base_len - 1] == '/' || abs_base[base_len - 1] == '\\')) {
         ret = true;
+      } else {
+        char next_char = abs_path[base_len];
+        if (next_char == '\0' || next_char == '/' || next_char == '\\') {
+          ret = true;
+        }
       }
     }
     free(abs_path);

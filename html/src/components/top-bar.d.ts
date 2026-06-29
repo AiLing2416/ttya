@@ -4,8 +4,13 @@ interface Props {
     onUploadClick: () => void;
     onDownloadClick: () => void;
     writable?: boolean;
+    uploads?: any[];
 }
-export declare class TopBar extends Component<Props> {
-    render({ title, onUploadClick, onDownloadClick, writable }: Props): h.JSX.Element;
+interface State {
+    showDropdown: boolean;
+}
+export declare class TopBar extends Component<Props, State> {
+    constructor();
+    render({ title, onUploadClick, onDownloadClick, writable, uploads }: Props, { showDropdown }: State): h.JSX.Element;
 }
 export {};

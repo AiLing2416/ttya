@@ -87,6 +87,8 @@ struct server {
 
   uv_loop_t *loop;         // the libuv event loop
   char title[256];         // window title
+  char *username;          // basic auth username
+  bool chown_uploaded;     // whether to chown uploaded files to basic auth user
 };
 
 struct download_token {

@@ -85,8 +85,9 @@ static const struct option options[] = {{"port", required_argument, NULL, 'p'},
                                         {"version", no_argument, NULL, 'v'},
                                         {"title", required_argument, NULL, 'L'},
                                         {"help", no_argument, NULL, 'h'},
+                                        {"chown-uploaded", no_argument, NULL, 'x'},
                                         {NULL, 0, 0, 0}};
-static const char* opt_string = "p:i:U:c:H:u:g:s:w:I:b:P:f:6aSC:K:A:Wt:T:Om:oqBd:vhL:";
+static const char* opt_string = "p:i:U:c:H:u:g:s:w:I:b:P:f:6aSC:K:A:Wt:T:Om:oqBd:vhL:x";
 
 static void print_help() {
   // clang-format off
@@ -132,6 +133,7 @@ static void print_help() {
           "    -d, --debug             Set log level (default: 7)\n"
           "    -v, --version           Print the version and exit\n"
           "    -L, --title             Window title (default: ttya)\n"
+          "    -x, --chown-uploaded    Chown uploaded files to the basic auth user (requires root)\n"
           "    -h, --help              Print this text and exit\n\n"
           "Visit https://github.com/AiLing2416/ttya to get more information and report bugs.\n",
           TTYA_VERSION
@@ -211,6 +213,7 @@ static struct server* server_new(int argc, char** argv, int start) {
 static void server_free(struct server* ts) {
   if (ts == NULL) return;
   if (ts->credential != NULL) free(ts->credential);
+  if (ts->username != NULL) free(ts->username);
   if (ts->auth_header != NULL) free(ts->auth_header);
   if (ts->index != NULL) free(ts->index);
   if (ts->cwd != NULL) free(ts->cwd);
@@ -381,17 +384,26 @@ int main(int argc, char** argv) {
         strncpy(socket_owner, optarg, sizeof(socket_owner) - 1);
         socket_owner[sizeof(socket_owner) - 1] = '\0';
         break;
-      case 'c':
-        if (strchr(optarg, ':') == NULL) {
+      case 'c': {
+        char *colon = strchr(optarg, ':');
+        if (colon == NULL) {
           fprintf(stderr, "ttya: invalid credential, format: username:password\n");
           return -1;
         }
         char b64_text[256];
         lws_b64_encode_string(optarg, strlen(optarg), b64_text, sizeof(b64_text));
         server->credential = strdup(b64_text);
+        size_t user_len = colon - optarg;
+        server->username = malloc(user_len + 1);
+        memcpy(server->username, optarg, user_len);
+        server->username[user_len] = '\0';
         break;
+      }
       case 'H':
         server->auth_header = strdup(optarg);
+        break;
+      case 'x':
+        server->chown_uploaded = true;
         break;
       case 'u':
         info.uid = parse_int("uid", optarg);

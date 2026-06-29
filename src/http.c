@@ -7,6 +7,11 @@
 #include <unistd.h>
 #include <zlib.h>
 
+#ifndef _WIN32
+#include <pwd.h>
+#include <sys/types.h>
+#endif
+
 #include "html.h"
 #include "server.h"
 #include "utils.h"
@@ -296,6 +301,16 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
 
           return send_error(wsi, pss, HTTP_STATUS_INTERNAL_SERVER_ERROR, err_msg);
         }
+#ifndef _WIN32
+        if (server->chown_uploaded && geteuid() == 0 && server->username != NULL) {
+          struct passwd *pw = getpwnam(server->username);
+          if (pw != NULL) {
+            if (fchown(pss->upload_fd, pw->pw_uid, pw->pw_gid) != 0) {
+              lwsl_warn("Failed to chown uploaded file to user %s: %s\n", server->username, strerror(errno));
+            }
+          }
+        }
+#endif
         break;
       }
 
@@ -378,7 +393,7 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
             lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
           return 1;
 
-        return 1;
+        return lws_http_transaction_completed(wsi) ? 1 : 0;
       }
       break;
 

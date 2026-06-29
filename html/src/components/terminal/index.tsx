@@ -10,12 +10,22 @@ interface Props extends XtermOptions {
     id: string;
 }
 
+export interface UploadState {
+    id: string;
+    filename: string;
+    loaded: number;
+    total: number;
+    status: 'pending' | 'uploading' | 'success' | 'error';
+    errorMsg?: string;
+}
+
 interface State {
     modal: boolean;
     title: string;
     actionModal: 'none' | 'upload' | 'download';
     remotePath: string;
     writable: boolean;
+    uploads: UploadState[];
 }
 
 export class Terminal extends Component<Props, State> {
@@ -24,7 +34,7 @@ export class Terminal extends Component<Props, State> {
 
     constructor(props: Props) {
         super();
-        this.setState({ title: 'ttya', actionModal: 'none', remotePath: '', writable: true });
+        this.setState({ title: 'ttya', actionModal: 'none', remotePath: '', writable: true, uploads: [] });
         this.xterm = new Xterm(props, this.showModal, this.onTitleChange, this.onWritableChange);
     }
 
@@ -70,7 +80,6 @@ export class Terminal extends Component<Props, State> {
 
     @bind
     async performUpload(e: Event) {
-        // Prevent default form submission if wrapped in form
         e.preventDefault();
         const fileInput = document.getElementById('upload-file-input') as HTMLInputElement;
         const files = fileInput?.files;
@@ -79,36 +88,97 @@ export class Terminal extends Component<Props, State> {
             return;
         }
 
-        // We stream the file via POST body to /upload?path=...
-        // Fetch API allows body to be file.
-        // But implementation in http.c expects raw body write to file.
-        // If we use FormData, browser sends multipart/form-data with boundaries.
-        // our http.c server writes *everything* receiving to the file.
-        // So we must NOT use FormData if our backend logic is just "write body to file".
-        // functionality in http.c:
-        //    pss->upload_fd = open(path_arg, ...);
-        //    write(pss->upload_fd, in, len);
-        // This suggests raw body.
+        const remotePathBase = this.state.remotePath;
+        this.closeActionModal();
 
-        const file = files[0];
-        try {
-            const resp = await fetch(
-                `/upload?path=${encodeURIComponent(this.state.remotePath)}&filename=${encodeURIComponent(file.name)}`,
-                {
-                    method: 'POST',
-                    body: file,
-                }
-            );
-            if (resp.ok) {
-                alert('Upload successful');
-                this.closeActionModal();
-            } else {
-                const errorText = await resp.text();
-                alert('Upload failed: ' + (errorText || resp.statusText));
-            }
-        } catch (err) {
-            alert('Upload error: ' + err);
+        const fileList = Array.from(files);
+        const newUploads = fileList.map((file, idx) => ({
+            id: `${Date.now()}-${idx}`,
+            filename: file.name,
+            loaded: 0,
+            total: file.size,
+            status: 'pending' as const,
+        }));
+
+        this.setState(prevState => ({
+            uploads: [...(prevState.uploads || []), ...newUploads]
+        }));
+
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+            const uploadId = newUploads[i].id;
+            this.uploadSingleFile(file, remotePathBase, uploadId);
         }
+    }
+
+    uploadSingleFile(file: File, remotePathBase: string, uploadId: string) {
+        this.updateUploadStatus(uploadId, { status: 'uploading' });
+
+        const xhr = new XMLHttpRequest();
+        let targetPath = remotePathBase;
+        
+        if (targetPath.endsWith('/')) {
+            targetPath = targetPath + file.name;
+        } else {
+            const fileInput = document.getElementById('upload-file-input') as HTMLInputElement;
+            const filesCount = fileInput?.files?.length || 1;
+            if (filesCount > 1) {
+                targetPath = targetPath + '/' + file.name;
+            }
+        }
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                this.updateUploadStatus(uploadId, {
+                    loaded: e.loaded,
+                    total: e.total,
+                });
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                this.updateUploadStatus(uploadId, { status: 'success', loaded: file.size });
+                setTimeout(() => {
+                    this.clearUpload(uploadId);
+                }, 5000);
+            } else {
+                let errMsg = `${xhr.status} ${xhr.statusText || 'Upload failed'}`;
+                try {
+                    const json = JSON.parse(xhr.responseText);
+                    if (json && json.error) {
+                        errMsg = json.error;
+                    }
+                } catch (e) {}
+                this.updateUploadStatus(uploadId, { status: 'error', errorMsg: errMsg });
+            }
+        });
+
+        xhr.addEventListener('error', () => {
+            this.updateUploadStatus(uploadId, { status: 'error', errorMsg: 'Network error (Connection Reset)' });
+        });
+
+        xhr.open('POST', `/upload?path=${encodeURIComponent(targetPath)}&filename=${encodeURIComponent(file.name)}`);
+        xhr.send(file);
+    }
+
+    updateUploadStatus(id: string, updates: Partial<{ loaded: number; total: number; status: 'pending' | 'uploading' | 'success' | 'error'; errorMsg: string }>) {
+        this.setState(prevState => {
+            const uploads = (prevState.uploads || []).map(u => {
+                if (u.id === id) {
+                    return { ...u, ...updates };
+                }
+                return u;
+            });
+            return { uploads };
+        });
+    }
+
+    clearUpload(id: string) {
+        this.setState(prevState => {
+            const uploads = (prevState.uploads || []).filter(u => u.id !== id);
+            return { uploads };
+        });
     }
 
     @bind
@@ -144,48 +214,7 @@ export class Terminal extends Component<Props, State> {
         }
     }
 
-    render({ id }: Props, { modal, title, actionModal, remotePath }: State) {
-        const modalBgStyle = {
-            backgroundColor: '#2b2b2b',
-            color: '#d2d2d2',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-            minWidth: '320px',
-            border: '1px solid #444',
-        };
-        const inputStyle = {
-            width: '100%',
-            padding: '8px',
-            marginTop: '5px',
-            backgroundColor: '#1a1a1a',
-            color: '#fff',
-            border: '1px solid #444',
-            borderRadius: '4px',
-        };
-        const btnRowStyle = {
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '10px',
-            marginTop: '20px',
-        };
-        const btnPrimaryStyle = {
-            backgroundColor: '#427ab3',
-            color: '#fff',
-            border: 'none',
-            padding: '6px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-        };
-        const btnSecondaryStyle = {
-            backgroundColor: '#555',
-            color: '#fff',
-            border: 'none',
-            padding: '6px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-        };
-
+    render({ id }: Props, { modal, title, actionModal, remotePath, uploads }: State) {
         return (
             <div
                 id={id}
@@ -202,6 +231,7 @@ export class Terminal extends Component<Props, State> {
                     onUploadClick={this.handleUploadClick}
                     onDownloadClick={this.handleDownloadClick}
                     writable={this.state.writable}
+                    uploads={uploads}
                 />
                 <div
                     style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
@@ -209,29 +239,23 @@ export class Terminal extends Component<Props, State> {
                 ></div>
 
                 <Modal show={modal}>
-                    <div style={modalBgStyle}>
-                        <h3 style={{ marginTop: 0 }}>ZModem File Upload</h3>
-                        <label
-                            class="file-label"
-                            style={{
-                                display: 'block',
-                                padding: '20px',
-                                border: '2px dashed #444',
-                                textAlign: 'center',
-                                cursor: 'pointer',
-                            }}
-                        >
+                    <div class="flat-modal-card">
+                        <h3>
+                            <svg class="dropzone-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style={{ marginBottom: 0 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            ZModem File Upload
+                        </h3>
+                        <label class="flat-dropzone">
                             <input
                                 onChange={this.sendFile}
                                 class="file-input"
                                 type="file"
                                 multiple
-                                style={{ display: 'none' }}
                             />
+                            <svg class="dropzone-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                             <span class="file-cta">Choose files…</span>
                         </label>
-                        <div style={btnRowStyle}>
-                            <button onClick={() => this.setState({ modal: false })} style={btnSecondaryStyle}>
+                        <div class="btn-row">
+                            <button onClick={() => this.setState({ modal: false })} class="btn-flat-secondary">
                                 Cancel
                             </button>
                         </div>
@@ -239,75 +263,65 @@ export class Terminal extends Component<Props, State> {
                 </Modal>
 
                 <Modal show={actionModal !== 'none'}>
-                    <div style={modalBgStyle}>
-                        <h3 style={{ marginTop: 0 }}>{actionModal === 'upload' ? 'Upload File' : 'Download File'}</h3>
-                        <div style={{ marginBottom: '15px' }}>
-                            <label style={{ fontSize: '13px', color: '#aaa' }}>Absolute Path on Server:</label> <br />
+                    <div class="flat-modal-card">
+                        <h3>
+                            {actionModal === 'upload' ? (
+                                <svg class="dropzone-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style={{ marginBottom: 0 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            ) : (
+                                <svg class="dropzone-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style={{ marginBottom: 0 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            )}
+                            {actionModal === 'upload' ? 'Upload File' : 'Download File'}
+                        </h3>
+                        <div style={{ marginBottom: '16px' }}>
+                            <label class="field-label">Absolute Path on Server:</label>
                             <input
                                 type="text"
                                 value={remotePath}
                                 onInput={this.handlePathChange}
-                                style={inputStyle}
+                                class="flat-input"
                                 placeholder="/path/to/file"
                             />
+                            <span class="field-desc">Specify the exact path on the remote system</span>
                         </div>
 
                         {actionModal === 'upload' && (
-                            <div style={{ marginBottom: '15px' }}>
-                                <label
-                                    style={{ fontSize: '13px', color: '#aaa', marginBottom: '5px', display: 'block' }}
-                                >
-                                    Select File:
-                                </label>
-                                <label
-                                    class="file-label"
-                                    style={{
-                                        display: 'block',
-                                        padding: '10px',
-                                        border: '1px dashed #444',
-                                        textAlign: 'center',
-                                        cursor: 'pointer',
-                                        backgroundColor: '#1a1a1a',
-                                        borderRadius: '4px',
-                                    }}
-                                >
+                            <div style={{ marginBottom: '16px' }}>
+                                <label class="field-label">Select File:</label>
+                                <label class="flat-dropzone" style={{ padding: '16px 20px' }}>
                                     <input
                                         id="upload-file-input"
-                                        class="file-input"
                                         type="file"
-                                        style={{ display: 'none' }}
+                                        class="file-input"
+                                        multiple
                                         onChange={e => {
-                                            const file = (e.target as HTMLInputElement).files?.[0];
-                                            const span = (e.target as HTMLElement).nextElementSibling as HTMLElement;
-                                            if (file && span) span.innerText = file.name;
+                                            const files = (e.target as HTMLInputElement).files;
+                                            const label = (e.target as HTMLElement).parentElement;
+                                            const span = label?.querySelector('.file-cta') as HTMLElement;
+                                            if (files && files.length > 0 && span) {
+                                                if (files.length === 1) {
+                                                    span.innerText = files[0].name;
+                                                } else {
+                                                    span.innerText = `${files.length} files selected`;
+                                                }
+                                            }
                                         }}
                                     />
-                                    <span
-                                        class="file-cta"
-                                        style={{
-                                            border: 'none',
-                                            backgroundColor: 'transparent',
-                                            padding: 0,
-                                            height: 'auto',
-                                            color: '#fff',
-                                        }}
-                                    >
-                                        Choose file...
-                                    </span>
+                                    <svg class="dropzone-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style={{ marginBottom: '4px' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                    <span class="file-cta" style={{ fontSize: '13px' }}>Choose file...</span>
                                 </label>
                             </div>
                         )}
 
-                        <div style={btnRowStyle}>
-                            <button onClick={this.closeActionModal} style={btnSecondaryStyle}>
+                        <div class="btn-row">
+                            <button onClick={this.closeActionModal} class="btn-flat-secondary">
                                 Cancel
                             </button>
                             {actionModal === 'upload' ? (
-                                <button onClick={this.performUpload} style={btnPrimaryStyle}>
+                                <button onClick={this.performUpload} class="btn-flat-primary">
                                     Upload
                                 </button>
                             ) : (
-                                <button onClick={this.performDownload} style={btnPrimaryStyle}>
+                                <button onClick={this.performDownload} class="btn-flat-primary">
                                     Download
                                 </button>
                             )}
