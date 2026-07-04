@@ -3110,16 +3110,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"css-minimizer-webpack-plugin@npm:^7.0.4":
-  version: 7.0.4
-  resolution: "css-minimizer-webpack-plugin@npm:7.0.4"
+"css-minimizer-webpack-plugin@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "css-minimizer-webpack-plugin@npm:8.0.0"
   dependencies:
     "@jridgewell/trace-mapping": ^0.3.25
     cssnano: ^7.0.4
     jest-worker: ^30.0.5
     postcss: ^8.4.40
     schema-utils: ^4.2.0
-    serialize-javascript: ^6.0.2
+    serialize-javascript: ^7.0.3
   peerDependencies:
     webpack: ^5.0.0
   peerDependenciesMeta:
@@ -3135,7 +3135,7 @@ __metadata:
       optional: true
     lightningcss:
       optional: true
-  checksum: 93859a1ab8747aefb67d3330d4a1f0d73c15f3a13da6c9396ec9aacce9172f0aa33908a9a1f39e5b5881fac729d020c8b57bd7693d0c0d64d51b1f45646d0075
+  checksum: 655c079decd88173770d2825073237dbd537204b3510b9362dbb0717c679c17340d4d74116acaa031256af09bf799d2b14a21926340f9168c22fbeeda24ab005
   languageName: node
   linkType: hard
 
@@ -10391,7 +10391,7 @@ __metadata:
     "@xterm/xterm": ^5.5.0
     copy-webpack-plugin: ^14.0.0
     css-loader: ^7.1.2
-    css-minimizer-webpack-plugin: ^7.0.4
+    css-minimizer-webpack-plugin: ^8.0.0
     decko: ^1.2.0
     eslint: ^10.0.3
     eslint-plugin-node: ^11.1.0
