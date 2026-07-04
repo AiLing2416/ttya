@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "ttya",
-  "version": "1.8.0",
+  "version": "1.8.2",
   "description": "Share your terminal over the web",
   "repository": {
     "url": "https://github.com/AiLing2416/ttya.git",
