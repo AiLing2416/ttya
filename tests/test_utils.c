@@ -15,7 +15,6 @@ int test_endswith(const char *str, const char *suffix, bool expected) {
     return 0;
 }
 
-<<<<<<< HEAD
 int test_uppercase(const char *input, const char *expected) {
     char buf[256];
     memset(buf, 0, sizeof(buf));
