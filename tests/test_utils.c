@@ -3,7 +3,17 @@
 #include <stdbool.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "utils.h"
+
+#ifdef _WIN32
+#include <direct.h>
+#define MKDIR(path) mkdir(path)
+#else
+#include <unistd.h>
+#define MKDIR(path) mkdir(path, 0755)
+#endif
 
 int test_endswith(const char *str, const char *suffix, bool expected) {
     bool actual = endswith(str, suffix);
@@ -162,6 +172,78 @@ int test_get_sig(const char *sig_name, int expected) {
     return 0;
 }
 
+int test_validate_filename(const char *filename, bool expected) {
+    bool actual = validate_filename(filename);
+    if (actual != expected) {
+        printf("FAIL: validate_filename(\"%s\") expected %d, got %d\n", filename ? filename : "NULL", expected, actual);
+        return 1;
+    }
+    printf("PASS: validate_filename(\"%s\") == %d\n", filename ? filename : "NULL", actual);
+    return 0;
+}
+
+int test_check_path_case(const char *path, const char *base, bool expected) {
+    bool actual = check_path(path, base);
+    if (actual != expected) {
+        printf("FAIL: check_path(\"%s\", \"%s\") expected %d, got %d\n", path, base, expected, actual);
+        return 1;
+    }
+    printf("PASS: check_path(\"%s\", \"%s\") == %d\n", path, base, actual);
+    return 0;
+}
+
+int test_check_path() {
+    printf("Testing check_path...\n");
+    int failures = 0;
+
+    // Setup relative test directories
+    if (MKDIR("./ttyd_test") != 0) {
+        perror("mkdir ./ttyd_test");
+    }
+    if (MKDIR("./ttyd_test/sub") != 0) {
+        perror("mkdir ./ttyd_test/sub");
+    }
+    if (MKDIR("./ttyd_test_other") != 0) {
+        perror("mkdir ./ttyd_test_other");
+    }
+    if (MKDIR("./ttyd_test_prefix") != 0) {
+        perror("mkdir ./ttyd_test_prefix");
+    }
+    FILE *f = fopen("./ttyd_test/file.txt", "w");
+    if (f) {
+        fclose(f);
+    } else {
+        perror("fopen ./ttyd_test/file.txt");
+    }
+
+    // Happy paths
+    failures += test_check_path_case("./ttyd_test", "./ttyd_test", true);
+    failures += test_check_path_case("./ttyd_test/sub", "./ttyd_test", true);
+    failures += test_check_path_case("./ttyd_test/file.txt", "./ttyd_test", true);
+
+    // Dot dot
+    failures += test_check_path_case("./ttyd_test/sub/..", "./ttyd_test", true);
+
+    // Negative cases
+    failures += test_check_path_case("./ttyd_test_other", "./ttyd_test", false);
+    failures += test_check_path_case("./ttyd_test/../ttyd_test_other", "./ttyd_test", false);
+
+    // Prefix match but not in directory
+    failures += test_check_path_case("./ttyd_test_prefix", "./ttyd_test", false);
+
+    // Non-existent
+    failures += test_check_path_case("./non_existent_path", "./ttyd_test", false);
+
+    // Cleanup
+    remove("./ttyd_test/file.txt");
+    rmdir("./ttyd_test/sub");
+    rmdir("./ttyd_test");
+    rmdir("./ttyd_test_other");
+    rmdir("./ttyd_test_prefix");
+
+    return failures;
+}
+
 int main() {
     int failures = 0;
 
@@ -246,6 +328,19 @@ int main() {
     failures += test_xmalloc();
     printf("\n");
     failures += test_xrealloc();
+
+    printf("\nTesting validate_filename...\n");
+    failures += test_validate_filename("test.txt", true);
+    failures += test_validate_filename("my-file.123", true);
+    failures += test_validate_filename("some.dir/file", false);
+    failures += test_validate_filename("some\\file", false);
+    failures += test_validate_filename("..", false);
+    failures += test_validate_filename(".", false);
+    failures += test_validate_filename("", false);
+    failures += test_validate_filename(NULL, false);
+
+    printf("\n");
+    failures += test_check_path();
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);

@@ -129,6 +129,14 @@ bool check_path(const char *path, const char *base) {
   return ret;
 }
 
+bool validate_filename(const char *filename) {
+  if (filename == NULL || filename[0] == '\0') return false;
+  if (strchr(filename, '/') || strchr(filename, '\\') || strcmp(filename, "..") == 0 || strcmp(filename, ".") == 0) {
+    return false;
+  }
+  return true;
+}
+
 #ifndef _WIN32
 static int run_command(char *const argv[]) {
   pid_t pid = fork();

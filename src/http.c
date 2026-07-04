@@ -262,6 +262,9 @@ int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user,
         if (stat(full_path, &st) == 0 && S_ISDIR(st.st_mode)) {
           char filename[256] = "";
           if (lws_get_urlarg_by_name(wsi, "filename", filename, sizeof(filename)) > 0) {
+            if (!validate_filename(filename)) {
+              return send_error(wsi, pss, HTTP_STATUS_BAD_REQUEST, "Invalid filename");
+            }
             size_t current_len = strlen(full_path);
             bool add_slash = current_len > 0 && full_path[current_len - 1] != '/';
             snprintf(full_path + current_len, sizeof(full_path) - current_len, "%s%s", add_slash ? "/" : "", filename);

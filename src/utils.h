@@ -37,6 +37,9 @@ int get_sig(const char *sig_name);
 // Check path is safe
 bool check_path(const char *path, const char *base);
 
+// Validate filename for upload
+bool validate_filename(const char *filename);
+
 // Open uri with the default application of system
 int open_uri(char *uri);
 
