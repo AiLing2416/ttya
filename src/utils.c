@@ -79,15 +79,18 @@ int timingsafe_strcmp(const char *s1, const char *s2) {
 }
 
 int get_sig_name(int sig, char *buf, size_t len) {
-  int n = snprintf(buf, len, "SIG%s", sig < NSIG ? sys_signame[sig] : "unknown");
+  const char *name = sig >= 0 && sig < NSIG ? sys_signame[sig] : NULL;
+  int n = snprintf(buf, len, "SIG%s", name != NULL ? name : "unknown");
   uppercase(buf);
   return n;
 }
 
 int get_sig(const char *sig_name) {
+  bool has_sig_prefix = strncasecmp(sig_name, "SIG", 3) == 0;
   for (int sig = 1; sig < NSIG; sig++) {
     const char *name = sys_signame[sig];
-    if (name != NULL && (strcasecmp(name, sig_name) == 0 || strcasecmp(name, sig_name + 3) == 0)) return sig;
+    if (name == NULL) continue;
+    if (strcasecmp(name, sig_name) == 0 || (has_sig_prefix && strcasecmp(name, sig_name + 3) == 0)) return sig;
   }
   return atoi(sig_name);
 }

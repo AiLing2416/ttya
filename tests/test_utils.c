@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <signal.h>
 #include "utils.h"
 
 int test_endswith(const char *str, const char *suffix, bool expected) {
@@ -14,6 +15,7 @@ int test_endswith(const char *str, const char *suffix, bool expected) {
     return 0;
 }
 
+<<<<<<< HEAD
 int test_uppercase(const char *input, const char *expected) {
     char buf[256];
     memset(buf, 0, sizeof(buf));
@@ -137,7 +139,27 @@ int test_xrealloc() {
         return 1;
     }
     printf("PASS: xrealloc(NULL, 0) returned NULL\n");
+    return 0;
+}
 
+int test_get_sig_name(int sig, const char *expected) {
+    char buf[32];
+    get_sig_name(sig, buf, sizeof(buf));
+    if (strcmp(buf, expected) != 0) {
+        printf("FAIL: get_sig_name(%d) expected \"%s\", got \"%s\"\n", sig, expected, buf);
+        return 1;
+    }
+    printf("PASS: get_sig_name(%d) == \"%s\"\n", sig, buf);
+    return 0;
+}
+
+int test_get_sig(const char *sig_name, int expected) {
+    int actual = get_sig(sig_name);
+    if (actual != expected) {
+        printf("FAIL: get_sig(\"%s\") expected %d, got %d\n", sig_name, expected, actual);
+        return 1;
+    }
+    printf("PASS: get_sig(\"%s\") == %d\n", sig_name, actual);
     return 0;
 }
 
@@ -145,23 +167,41 @@ int main() {
     int failures = 0;
 
     printf("Testing endswith...\n");
-
-    // Happy paths
     failures += test_endswith("hello.sock", ".sock", true);
     failures += test_endswith("file.txt", ".txt", true);
     failures += test_endswith("something", "thing", true);
-
-    // Negative cases
     failures += test_endswith("hello.sock", ".socket", false);
     failures += test_endswith("file.txt", ".tx", false);
     failures += test_endswith("abc", "def", false);
+    failures += test_endswith("abc", "abcd", false);
+    failures += test_endswith("abc", "abc", true);
+    failures += test_endswith("a", "a", true);
+    failures += test_endswith("abc", "", true);
+    failures += test_endswith("", "", true);
 
-    // Edge cases
-    failures += test_endswith("abc", "abcd", false); // suffix longer than string
-    failures += test_endswith("abc", "abc", true);   // identical strings
-    failures += test_endswith("a", "a", true);       // single char identical
-    failures += test_endswith("abc", "", true);      // empty suffix
-    failures += test_endswith("", "", true);         // empty string and empty suffix
+    printf("\nTesting get_sig_name...\n");
+    // We use indices instead of macros like SIGHUP because they are not available on all platforms (e.g. MinGW)
+    failures += test_get_sig_name(1, "SIGHUP");
+    failures += test_get_sig_name(2, "SIGINT");
+    failures += test_get_sig_name(9, "SIGKILL");
+    failures += test_get_sig_name(15, "SIGTERM");
+    failures += test_get_sig_name(0, "SIGZERO");
+    // signal 999 is definitely unknown
+    failures += test_get_sig_name(999, "SIGUNKNOWN");
+    // signal -1 is definitely unknown
+    failures += test_get_sig_name(-1, "SIGUNKNOWN");
+
+    printf("\nTesting get_sig...\n");
+    failures += test_get_sig("HUP", 1);
+    failures += test_get_sig("SIGHUP", 1);
+    failures += test_get_sig("hup", 1);
+    failures += test_get_sig("sighup", 1);
+    failures += test_get_sig("KILL", 9);
+    failures += test_get_sig("SIGKILL", 9);
+    failures += test_get_sig("9", 9);
+    failures += test_get_sig("invalid", 0);
+    failures += test_get_sig("SI", 0);
+    failures += test_get_sig("", 0);
 
     printf("\nTesting uppercase...\n");
     // Happy paths
