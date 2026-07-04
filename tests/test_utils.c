@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include "utils.h"
@@ -78,6 +79,68 @@ int test_open_uri_injection() {
     return 0;
 }
 
+int test_xmalloc() {
+    printf("Testing xmalloc...\n");
+    void *p = xmalloc(100);
+    if (p == NULL) {
+        printf("FAIL: xmalloc(100) returned NULL\n");
+        return 1;
+    }
+    free(p);
+    printf("PASS: xmalloc(100) returned non-NULL\n");
+
+    p = xmalloc(0);
+    if (p != NULL) {
+        printf("FAIL: xmalloc(0) returned non-NULL\n");
+        return 1;
+    }
+    printf("PASS: xmalloc(0) returned NULL\n");
+    return 0;
+}
+
+int test_xrealloc() {
+    printf("Testing xrealloc...\n");
+    void *p = xrealloc(NULL, 100);
+    if (p == NULL) {
+        printf("FAIL: xrealloc(NULL, 100) returned NULL\n");
+        return 1;
+    }
+    printf("PASS: xrealloc(NULL, 100) returned non-NULL\n");
+
+    void *p2 = xrealloc(p, 200);
+    if (p2 == NULL) {
+        printf("FAIL: xrealloc(p, 200) returned NULL\n");
+        free(p);
+        return 1;
+    }
+    printf("PASS: xrealloc(p, 200) returned non-NULL\n");
+
+    void *p3 = xrealloc(p2, 50);
+    if (p3 == NULL) {
+        printf("FAIL: xrealloc(p2, 50) returned NULL\n");
+        free(p2);
+        return 1;
+    }
+    printf("PASS: xrealloc(p2, 50) returned non-NULL\n");
+
+    void *p4 = xrealloc(p3, 0);
+    if (p4 != NULL) {
+        printf("FAIL: xrealloc(p3, 0) returned non-NULL\n");
+        free(p4);
+        return 1;
+    }
+    printf("PASS: xrealloc(p3, 0) returned NULL\n");
+
+    void *p5 = xrealloc(NULL, 0);
+    if (p5 != NULL) {
+        printf("FAIL: xrealloc(NULL, 0) returned non-NULL\n");
+        return 1;
+    }
+    printf("PASS: xrealloc(NULL, 0) returned NULL\n");
+
+    return 0;
+}
+
 int main() {
     int failures = 0;
 
@@ -139,6 +202,11 @@ int main() {
     failures += test_timingsafe_strcmp("a", "", 0);
 
     failures += test_open_uri_injection();
+
+    printf("\n");
+    failures += test_xmalloc();
+    printf("\n");
+    failures += test_xrealloc();
 
     if (failures > 0) {
         printf("\n%d tests failed!\n", failures);

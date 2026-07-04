@@ -38,7 +38,10 @@ void *xmalloc(size_t size) {
 }
 
 void *xrealloc(void *p, size_t size) {
-  if ((size == 0) && (p == NULL)) return NULL;
+  if (size == 0) {
+    free(p);
+    return NULL;
+  }
   p = realloc(p, size);
   if (!p) abort();
   return p;
