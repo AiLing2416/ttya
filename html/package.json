@@ -28,7 +28,7 @@
     "eslint": "^10.0.3",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^5.5.5",
-    "eslint-webpack-plugin": "^5.0.2",
+    "eslint-webpack-plugin": "^6.0.0",
     "gts": "^7.0.0",
     "gulp": "^5.0.1",
     "gulp-clean": "^0.4.0",
