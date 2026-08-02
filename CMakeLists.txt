@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-project(ttya VERSION 1.8.2 LANGUAGES C)
+project(ttya VERSION 1.9.0 LANGUAGES C)
 
 set(TTYA_VERSION "${PROJECT_VERSION}")
 
