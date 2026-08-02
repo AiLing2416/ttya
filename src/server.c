@@ -23,6 +23,7 @@ struct lws_context* context;
 struct server* server;
 struct endpoints endpoints = {"/ws", "/", "/token", ""};
 struct download_token* download_tokens = NULL;
+pty_ctx_t *suspended_sessions = NULL;
 
 extern int callback_http(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in, size_t len);
 extern int callback_tty(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in, size_t len);
@@ -81,6 +82,7 @@ static const struct option options[] = {{"port", required_argument, NULL, 'p'},
                                         {"max-clients", required_argument, NULL, 'm'},
                                         {"once", no_argument, NULL, 'o'},
                                         {"exit-no-conn", no_argument, NULL, 'q'},
+                                        {"keep-alive", required_argument, NULL, 'k'},
                                         {"browser", no_argument, NULL, 'B'},
                                         {"debug", required_argument, NULL, 'd'},
                                         {"version", no_argument, NULL, 'v'},
@@ -89,7 +91,7 @@ static const struct option options[] = {{"port", required_argument, NULL, 'p'},
                                         {"chown-uploaded", no_argument, NULL, 'x'},
                                         {"config", required_argument, NULL, 'E'},
                                         {NULL, 0, 0, 0}};
-static const char* opt_string = "p:i:U:c:H:u:g:s:w:I:b:P:f:6aSC:K:A:Wt:T:Om:oqBd:vhL:xE:";
+static const char* opt_string = "p:i:U:c:H:u:g:s:w:I:b:P:f:6aSC:K:A:Wt:T:Om:oqBd:vhL:xE:k:";
 
 static void print_help() {
   // clang-format off
@@ -116,6 +118,7 @@ static void print_help() {
           "    -m, --max-clients       Maximum clients to support (default: 0, no limit)\n"
           "    -o, --once              Accept only one client and exit on disconnection\n"
           "    -q, --exit-no-conn      Exit on all clients disconnection\n"
+          "    -k, --keep-alive        Timeout in seconds to keep terminal alive after client disconnects (default: 0)\n"
           "    -B, --browser           Open terminal with the default system browser\n"
           "    -I, --index             Custom index.html path\n"
           "    -b, --base-path         Expected base path for requests coming from a reverse proxy (eg: /mounted/here, max length: 128)\n"
@@ -164,6 +167,7 @@ static void print_config() {
   if (server->max_clients > 0) lwsl_notice("  max clients: %d\n", server->max_clients);
   if (server->once) lwsl_notice("  once: true\n");
   if (server->exit_no_conn) lwsl_notice("  exit_no_conn: true\n");
+  if (server->keep_alive > 0) lwsl_notice("  keep alive: %d\n", server->keep_alive);
   if (server->index != NULL) lwsl_notice("  custom index.html: %s\n", server->index);
   if (server->cwd != NULL) lwsl_notice("  working directory: %s\n", server->cwd);
   if (!server->writable) lwsl_warn("The --writable option is not set, will start in readonly mode\n");
@@ -389,6 +393,9 @@ int main(int argc, char** argv) {
         break;
       case 'q':
         server->exit_no_conn = true;
+        break;
+      case 'k':
+        server->keep_alive = parse_int("keep-alive", optarg);
         break;
       case 'B':
         browser = true;

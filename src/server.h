@@ -1,3 +1,6 @@
+#ifndef TTYA_SERVER_H
+#define TTYA_SERVER_H
+
 #include <libwebsockets.h>
 #include <stdbool.h>
 #include <uv.h>
@@ -57,12 +60,23 @@ struct pss_tty {
   pty_buf_t *pty_buf;
 
   int lws_close_status;
+  
+  bool send_history;
+  size_t history_sent;
 };
 
-typedef struct {
+typedef struct pty_ctx_s {
   struct pss_tty *pss;
   bool ws_closed;
+  struct pty_ctx_s *next;
+  uv_timer_t *timer;
+  pty_process *process;
+  
+  char *history;
+  size_t history_len;
 } pty_ctx_t;
+
+extern pty_ctx_t *suspended_sessions;
 
 struct server {
   int client_count;        // client count
@@ -82,6 +96,7 @@ struct server {
   int max_clients;         // maximum clients to support
   bool once;               // whether accept only one client and exit on disconnection
   bool exit_no_conn;       // whether exit on all clients disconnection
+  int keep_alive;          // keep alive timeout for suspended sessions
   char socket_path[255];   // UNIX domain socket path
   char terminal_type[30];  // terminal type to report
 
@@ -100,3 +115,4 @@ struct download_token {
 
 extern struct download_token *download_tokens;
 
+#endif // TTYA_SERVER_H

@@ -75,15 +75,65 @@ static bool check_host_origin(struct lws *wsi) {
 
 static pty_ctx_t *pty_ctx_init(struct pss_tty *pss) {
   pty_ctx_t *ctx = xmalloc(sizeof(pty_ctx_t));
+  memset(ctx, 0, sizeof(pty_ctx_t));
   ctx->pss = pss;
   ctx->ws_closed = false;
   return ctx;
 }
 
-static void pty_ctx_free(pty_ctx_t *ctx) { free(ctx); }
+static void pty_ctx_free(pty_ctx_t *ctx) {
+  if (ctx->history != NULL) free(ctx->history);
+  free(ctx);
+}
+
+static void keep_alive_cb(uv_timer_t *timer) {
+  pty_ctx_t *ctx = (pty_ctx_t *)timer->data;
+  lwsl_notice("keep alive timeout, killing process, pid: %d\n", ctx->process->pid);
+  
+  pty_ctx_t **curr = &suspended_sessions;
+  while (*curr) {
+    if (*curr == ctx) {
+      *curr = ctx->next;
+      break;
+    }
+    curr = &(*curr)->next;
+  }
+  
+  pty_kill(ctx->process, server->sig_code);
+  uv_timer_stop(ctx->timer);
+  uv_close((uv_handle_t*)ctx->timer, (uv_close_cb)free);
+  ctx->timer = NULL;
+}
+
+#define MAX_HISTORY_SIZE (4 * 1024 * 1024)
 
 static void process_read_cb(pty_process *process, pty_buf_t *buf, bool eof) {
   pty_ctx_t *ctx = (pty_ctx_t *)process->ctx;
+  
+  if (buf != NULL && buf->len > 0) {
+      size_t new_len = ctx->history_len + buf->len;
+      if (new_len > MAX_HISTORY_SIZE) {
+          size_t copy_len = buf->len > MAX_HISTORY_SIZE ? MAX_HISTORY_SIZE : buf->len;
+          size_t keep_len = MAX_HISTORY_SIZE - copy_len;
+          
+          if (ctx->history == NULL) {
+              ctx->history = xmalloc(MAX_HISTORY_SIZE);
+          } else if (keep_len > 0) {
+              memmove(ctx->history, ctx->history + ctx->history_len - keep_len, keep_len);
+          }
+          memcpy(ctx->history + keep_len, buf->base + buf->len - copy_len, copy_len);
+          ctx->history_len = MAX_HISTORY_SIZE;
+      } else {
+          if (ctx->history == NULL) {
+              ctx->history = xmalloc(new_len);
+          } else {
+              ctx->history = xrealloc(ctx->history, new_len);
+          }
+          memcpy(ctx->history + ctx->history_len, buf->base, buf->len);
+          ctx->history_len = new_len;
+      }
+  }
+
   if (ctx->ws_closed) {
     pty_buf_free(buf);
     return;
@@ -99,6 +149,19 @@ static void process_read_cb(pty_process *process, pty_buf_t *buf, bool eof) {
 static void process_exit_cb(pty_process *process) {
   pty_ctx_t *ctx = (pty_ctx_t *)process->ctx;
   if (ctx->ws_closed) {
+    if (ctx->timer) {
+      pty_ctx_t **curr = &suspended_sessions;
+      while (*curr) {
+        if (*curr == ctx) {
+          *curr = ctx->next;
+          break;
+        }
+        curr = &(*curr)->next;
+      }
+      uv_timer_stop(ctx->timer);
+      uv_close((uv_handle_t*)ctx->timer, (uv_close_cb)free);
+      ctx->timer = NULL;
+    }
     lwsl_notice("process killed with signal %d, pid: %d\n", process->exit_signal, process->pid);
     goto done;
   }
@@ -163,6 +226,9 @@ static bool spawn_process(struct pss_tty *pss, uint16_t columns, uint16_t rows) 
   }
   lwsl_notice("started process, pid: %d\n", process->pid);
   pss->process = process;
+  if (pss->initialized) {
+    pty_resume(pss->process);
+  }
   lws_callback_on_writable(pss->wsi);
 
   return true;
@@ -237,6 +303,8 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
       pss->authenticated = false;
       pss->wsi = wsi;
       pss->lws_close_status = LWS_CLOSE_STATUS_NOSTATUS;
+      pss->send_history = false;
+      pss->history_sent = 0;
 
       if (server->url_arg) {
         while (lws_hdr_copy_fragment(wsi, buf, sizeof(buf), WSI_TOKEN_HTTP_URI_ARGS, n++) > 0) {
@@ -261,7 +329,8 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
       if (!pss->initialized) {
         if (pss->initial_cmd_index == sizeof(initial_cmds)) {
           pss->initialized = true;
-          pty_resume(pss->process);
+          pss->send_history = true;
+          lws_callback_on_writable(wsi);
           break;
         }
         if (send_initial_message(wsi, pss->initial_cmd_index) < 0) {
@@ -272,6 +341,26 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
         pss->initial_cmd_index++;
         lws_callback_on_writable(wsi);
         break;
+      }
+      
+      if (pss->send_history) {
+        if (pss->process != NULL) {
+            pty_ctx_t *ctx = (pty_ctx_t *)pss->process->ctx;
+            if (ctx->history != NULL && pss->history_sent < ctx->history_len) {
+                size_t to_send = ctx->history_len - pss->history_sent;
+                if (to_send > 32768) to_send = 32768; // 32KB chunk limit
+                
+                pty_buf_t *b = pty_buf_init(ctx->history + pss->history_sent, to_send);
+                wsi_output(wsi, b);
+                pty_buf_free(b);
+                
+                pss->history_sent += to_send;
+                lws_callback_on_writable(wsi);
+                return 0; // wait for next writable event
+            }
+        }
+        pss->send_history = false;
+        if (pss->process != NULL) pty_resume(pss->process);
       }
 
       if (pss->lws_close_status > LWS_CLOSE_STATUS_NOSTATUS) {
@@ -357,7 +446,35 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
             }
           }
           json_object_put(obj);
-          if (!spawn_process(pss, columns, rows)) return 1;
+          
+          if (server->keep_alive > 0 && suspended_sessions != NULL) {
+            pty_ctx_t *ctx = suspended_sessions;
+            suspended_sessions = ctx->next;
+            
+            uv_timer_stop(ctx->timer);
+            uv_close((uv_handle_t*)ctx->timer, (uv_close_cb)free);
+            ctx->timer = NULL;
+            ctx->pss = pss;
+            ctx->ws_closed = false;
+            
+            pss->process = ctx->process;
+            pss->process->columns = columns > 0 ? columns : pss->process->columns;
+            pss->process->rows = rows > 0 ? rows : pss->process->rows;
+            
+            // Force SIGWINCH to trigger redraw for full-screen apps like nano/vim
+            uint16_t old_cols = pss->process->columns;
+            pss->process->columns = old_cols == 999 ? old_cols - 1 : old_cols + 1;
+            pty_resize(pss->process);
+            pss->process->columns = old_cols;
+            pty_resize(pss->process);
+            
+            pss->send_history = true;
+            pss->history_sent = 0;
+            lws_callback_on_writable(pss->wsi);
+            lwsl_notice("resumed process, pid: %d\n", pss->process->pid);
+          } else {
+            if (!spawn_process(pss, columns, rows)) return 1;
+          }
           break;
         default:
           lwsl_warn("ignored unknown message type: %c\n", command);
@@ -391,11 +508,23 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
       pss->args_cap = 0;
 
       if (pss->process != NULL) {
-        ((pty_ctx_t *)pss->process->ctx)->ws_closed = true;
+        pty_ctx_t *ctx = (pty_ctx_t *)pss->process->ctx;
+        ctx->ws_closed = true;
         if (process_running(pss->process)) {
           pty_pause(pss->process);
-          lwsl_notice("killing process, pid: %d\n", pss->process->pid);
-          pty_kill(pss->process, server->sig_code);
+          if (server->keep_alive > 0) {
+            lwsl_notice("suspending process, pid: %d for %d seconds\n", pss->process->pid, server->keep_alive);
+            ctx->timer = xmalloc(sizeof(uv_timer_t));
+            uv_timer_init(server->loop, ctx->timer);
+            ctx->timer->data = ctx;
+            ctx->process = pss->process;
+            ctx->next = suspended_sessions;
+            suspended_sessions = ctx;
+            uv_timer_start(ctx->timer, keep_alive_cb, server->keep_alive * 1000, 0);
+          } else {
+            lwsl_notice("killing process, pid: %d\n", pss->process->pid);
+            pty_kill(pss->process, server->sig_code);
+          }
         }
       }
 
