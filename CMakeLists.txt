@@ -27,7 +27,7 @@ else()
     set(CMAKE_C_STANDARD 99)
 endif()
 
-set(SOURCE_FILES src/utils.c src/pty.c src/protocol.c src/http.c src/server.c)
+set(SOURCE_FILES src/utils.c src/pty.c src/protocol.c src/http.c src/server.c src/config.c)
 
 include(FindPackageHandleStandardArgs)
 
@@ -108,3 +108,8 @@ if(NOT WIN32)
     endif()
 endif()
 add_test(NAME test_pty COMMAND test_pty)
+
+add_executable(test_config tests/test_config.c src/config.c)
+target_include_directories(test_config PRIVATE src ${INCLUDE_DIRS})
+target_link_libraries(test_config ${LINK_LIBS})
+add_test(NAME test_config COMMAND test_config)
