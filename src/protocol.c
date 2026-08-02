@@ -430,6 +430,13 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
           uint16_t columns = 0;
           uint16_t rows = 0;
           json_object *obj = parse_window_size(pss->buffer, pss->len, &columns, &rows);
+          char *session_id = NULL;
+          struct json_object *sess_obj = NULL;
+          if (json_object_object_get_ex(obj, "sessionId", &sess_obj)) {
+            const char *val = json_object_get_string(sess_obj);
+            if (val != NULL) session_id = strdup(val);
+          }
+          
           if (server->credential != NULL) {
             struct json_object *o = NULL;
             if (json_object_object_get_ex(obj, "AuthToken", &o)) {
@@ -441,40 +448,64 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
             }
             if (!pss->authenticated) {
               json_object_put(obj);
+              if (session_id != NULL) free(session_id);
               lws_close_reason(wsi, LWS_CLOSE_STATUS_POLICY_VIOLATION, NULL, 0);
               return -1;
             }
           }
           json_object_put(obj);
           
-          if (server->keep_alive > 0 && suspended_sessions != NULL) {
+          bool resumed = false;
+          if (server->keep_alive > 0 && session_id != NULL) {
+            pty_ctx_t *prev = NULL;
             pty_ctx_t *ctx = suspended_sessions;
-            suspended_sessions = ctx->next;
-            
-            uv_timer_stop(ctx->timer);
-            uv_close((uv_handle_t*)ctx->timer, (uv_close_cb)free);
-            ctx->timer = NULL;
-            ctx->pss = pss;
-            ctx->ws_closed = false;
-            
-            pss->process = ctx->process;
-            pss->process->columns = columns > 0 ? columns : pss->process->columns;
-            pss->process->rows = rows > 0 ? rows : pss->process->rows;
-            
-            // Force SIGWINCH to trigger redraw for full-screen apps like nano/vim
-            uint16_t old_cols = pss->process->columns;
-            pss->process->columns = old_cols == 999 ? old_cols - 1 : old_cols + 1;
-            pty_resize(pss->process);
-            pss->process->columns = old_cols;
-            pty_resize(pss->process);
-            
-            pss->send_history = true;
-            pss->history_sent = 0;
-            lws_callback_on_writable(pss->wsi);
-            lwsl_notice("resumed process, pid: %d\n", pss->process->pid);
-          } else {
-            if (!spawn_process(pss, columns, rows)) return 1;
+            while (ctx != NULL) {
+              if (ctx->session_id != NULL && strcmp(ctx->session_id, session_id) == 0) {
+                if (prev == NULL) {
+                  suspended_sessions = ctx->next;
+                } else {
+                  prev->next = ctx->next;
+                }
+                
+                uv_timer_stop(ctx->timer);
+                uv_close((uv_handle_t*)ctx->timer, (uv_close_cb)free);
+                ctx->timer = NULL;
+                ctx->pss = pss;
+                ctx->ws_closed = false;
+                
+                pss->process = ctx->process;
+                pss->process->columns = columns > 0 ? columns : pss->process->columns;
+                pss->process->rows = rows > 0 ? rows : pss->process->rows;
+                
+                uint16_t old_cols = pss->process->columns;
+                pss->process->columns = old_cols == 999 ? old_cols - 1 : old_cols + 1;
+                pty_resize(pss->process);
+                pss->process->columns = old_cols;
+                pty_resize(pss->process);
+                
+                pss->send_history = true;
+                pss->history_sent = 0;
+                lws_callback_on_writable(pss->wsi);
+                lwsl_notice("resumed process, pid: %d, session: %s\n", pss->process->pid, session_id);
+                resumed = true;
+                break;
+              }
+              prev = ctx;
+              ctx = ctx->next;
+            }
           }
+          
+          if (!resumed) {
+            if (!spawn_process(pss, columns, rows)) {
+              if (session_id != NULL) free(session_id);
+              return 1;
+            }
+            if (pss->process && pss->process->ctx && session_id != NULL) {
+              ((pty_ctx_t *)pss->process->ctx)->session_id = session_id;
+              session_id = NULL; // Assigned to ctx, do not free
+            }
+          }
+          if (session_id != NULL) free(session_id);
           break;
         default:
           lwsl_warn("ignored unknown message type: %c\n", command);

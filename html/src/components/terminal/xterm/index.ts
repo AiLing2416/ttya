@@ -264,8 +264,14 @@ export class Xterm {
     private onSocketOpen() {
         console.log('[ttya] websocket connection opened');
 
+        let sessionId = sessionStorage.getItem('ttya_session_id');
+        if (!sessionId) {
+            sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            sessionStorage.setItem('ttya_session_id', sessionId);
+        }
+
         const { textEncoder, terminal, overlayAddon } = this;
-        const msg = JSON.stringify({ AuthToken: this.token, columns: terminal.cols, rows: terminal.rows });
+        const msg = JSON.stringify({ AuthToken: this.token, columns: terminal.cols, rows: terminal.rows, sessionId: sessionId });
         this.socket?.send(textEncoder.encode(msg));
 
         if (this.opened) {

@@ -72,6 +72,7 @@ typedef struct pty_ctx_s {
   uv_timer_t *timer;
   pty_process *process;
   
+  char *session_id;
   char *history;
   size_t history_len;
 } pty_ctx_t;
