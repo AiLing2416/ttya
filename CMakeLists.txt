@@ -98,6 +98,10 @@ add_executable(test_utils tests/test_utils.c src/utils.c)
 target_include_directories(test_utils PRIVATE src)
 add_test(NAME test_utils COMMAND test_utils)
 
+add_executable(test_security tests/test_security.c src/utils.c)
+target_include_directories(test_security PRIVATE src)
+add_test(NAME test_security COMMAND test_security)
+
 add_executable(test_pty tests/test_pty.c src/pty.c src/utils.c)
 target_include_directories(test_pty PRIVATE ${INCLUDE_DIRS})
 target_link_libraries(test_pty ${LINK_LIBS})
